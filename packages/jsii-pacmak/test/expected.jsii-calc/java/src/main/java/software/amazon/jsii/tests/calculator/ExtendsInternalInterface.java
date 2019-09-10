@@ -6,6 +6,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface ExtendsInternalInterface extends software.amazon.jsii.JsiiSerializable {
+
     /**
      * EXPERIMENTAL
      */
@@ -25,18 +26,17 @@ public interface ExtendsInternalInterface extends software.amazon.jsii.JsiiSeria
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link ExtendsInternalInterface}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.lang.Boolean boom;
         private java.lang.String prop;
 
         /**
          * Sets the value of Boom
-         * @param boom the value to be set
+         * @param boom the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -47,7 +47,7 @@ public interface ExtendsInternalInterface extends software.amazon.jsii.JsiiSeria
 
         /**
          * Sets the value of Prop
-         * @param prop the value to be set
+         * @param prop the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -65,7 +65,6 @@ public interface ExtendsInternalInterface extends software.amazon.jsii.JsiiSeria
         public ExtendsInternalInterface build() {
             return new Jsii$Proxy(boom, prop);
         }
-
     }
 
     /**
@@ -86,7 +85,6 @@ public interface ExtendsInternalInterface extends software.amazon.jsii.JsiiSeria
             this.boom = this.jsiiGet("boom", java.lang.Boolean.class);
             this.prop = this.jsiiGet("prop", java.lang.String.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -133,6 +131,5 @@ public interface ExtendsInternalInterface extends software.amazon.jsii.JsiiSeria
             result = 31 * result + (this.prop.hashCode());
             return result;
         }
-
     }
 }

@@ -6,6 +6,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
+
     /**
      * This is a required field.
      * 
@@ -37,19 +38,18 @@ public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link TopLevelStruct}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.lang.String required;
         private java.lang.Object secondLevel;
         private java.lang.String optional;
 
         /**
          * Sets the value of Required
-         * @param required This is a required field.
+         * @param required This is a required field. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -60,7 +60,7 @@ public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of SecondLevel
-         * @param secondLevel A union to really stress test our serialization.
+         * @param secondLevel A union to really stress test our serialization. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -71,7 +71,7 @@ public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of SecondLevel
-         * @param secondLevel A union to really stress test our serialization.
+         * @param secondLevel A union to really stress test our serialization. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -100,7 +100,6 @@ public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
         public TopLevelStruct build() {
             return new Jsii$Proxy(required, secondLevel, optional);
         }
-
     }
 
     /**
@@ -123,7 +122,6 @@ public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
             this.secondLevel = this.jsiiGet("secondLevel", java.lang.Object.class);
             this.optional = this.jsiiGet("optional", java.lang.String.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -181,6 +179,5 @@ public interface TopLevelStruct extends software.amazon.jsii.JsiiSerializable {
             result = 31 * result + (this.optional != null ? this.optional.hashCode() : 0);
             return result;
         }
-
     }
 }

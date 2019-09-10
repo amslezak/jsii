@@ -15,6 +15,7 @@ public class DoNotOverridePrivates extends software.amazon.jsii.JsiiObject {
     protected DoNotOverridePrivates(final software.amazon.jsii.JsiiObject.InitializationMode initializationMode) {
         super(initializationMode);
     }
+
     public DoNotOverridePrivates() {
         super(software.amazon.jsii.JsiiObject.InitializationMode.JSII);
         this.setObjRef(software.amazon.jsii.JsiiEngine.getInstance().createNewObject(this));
@@ -22,6 +23,8 @@ public class DoNotOverridePrivates extends software.amazon.jsii.JsiiObject {
 
     /**
      * EXPERIMENTAL
+     * 
+     * @param newValue This parameter is required.
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
     public void changePrivatePropertyValue(final java.lang.String newValue) {

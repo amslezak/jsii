@@ -6,6 +6,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable, software.amazon.jsii.tests.calculator.base.BaseProps {
+
     /**
      * EXPERIMENTAL
      */
@@ -19,19 +20,18 @@ public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link ImplictBaseOfBase}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.time.Instant goo;
         private java.lang.String bar;
         private software.amazon.jsii.tests.calculator.baseofbase.Very foo;
 
         /**
          * Sets the value of Goo
-         * @param goo the value to be set
+         * @param goo the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -42,7 +42,7 @@ public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable
 
         /**
          * Sets the value of Bar
-         * @param bar the value to be set
+         * @param bar the value to be set. This parameter is required.
          * @return {@code this}
          */
         public Builder bar(java.lang.String bar) {
@@ -52,7 +52,7 @@ public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable
 
         /**
          * Sets the value of Foo
-         * @param foo the value to be set
+         * @param foo the value to be set. This parameter is required.
          * @return {@code this}
          */
         public Builder foo(software.amazon.jsii.tests.calculator.baseofbase.Very foo) {
@@ -69,7 +69,6 @@ public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable
         public ImplictBaseOfBase build() {
             return new Jsii$Proxy(goo, bar, foo);
         }
-
     }
 
     /**
@@ -92,7 +91,6 @@ public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable
             this.bar = this.jsiiGet("bar", java.lang.String.class);
             this.foo = this.jsiiGet("foo", software.amazon.jsii.tests.calculator.baseofbase.Very.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -148,6 +146,5 @@ public interface ImplictBaseOfBase extends software.amazon.jsii.JsiiSerializable
             result = 31 * result + (this.foo.hashCode());
             return result;
         }
-
     }
 }

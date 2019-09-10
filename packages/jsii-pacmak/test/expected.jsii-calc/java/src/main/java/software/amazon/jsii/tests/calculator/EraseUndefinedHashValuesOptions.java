@@ -6,6 +6,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface EraseUndefinedHashValuesOptions extends software.amazon.jsii.JsiiSerializable {
+
     /**
      * EXPERIMENTAL
      */
@@ -25,18 +26,17 @@ public interface EraseUndefinedHashValuesOptions extends software.amazon.jsii.Js
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link EraseUndefinedHashValuesOptions}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.lang.String option1;
         private java.lang.String option2;
 
         /**
          * Sets the value of Option1
-         * @param option1 the value to be set
+         * @param option1 the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -47,7 +47,7 @@ public interface EraseUndefinedHashValuesOptions extends software.amazon.jsii.Js
 
         /**
          * Sets the value of Option2
-         * @param option2 the value to be set
+         * @param option2 the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -65,7 +65,6 @@ public interface EraseUndefinedHashValuesOptions extends software.amazon.jsii.Js
         public EraseUndefinedHashValuesOptions build() {
             return new Jsii$Proxy(option1, option2);
         }
-
     }
 
     /**
@@ -86,7 +85,6 @@ public interface EraseUndefinedHashValuesOptions extends software.amazon.jsii.Js
             this.option1 = this.jsiiGet("option1", java.lang.String.class);
             this.option2 = this.jsiiGet("option2", java.lang.String.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -137,6 +135,5 @@ public interface EraseUndefinedHashValuesOptions extends software.amazon.jsii.Js
             result = 31 * result + (this.option2 != null ? this.option2.hashCode() : 0);
             return result;
         }
-
     }
 }

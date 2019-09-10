@@ -15,13 +15,16 @@ public abstract class AbstractClass extends software.amazon.jsii.tests.calculato
     protected AbstractClass(final software.amazon.jsii.JsiiObject.InitializationMode initializationMode) {
         super(initializationMode);
     }
-    public AbstractClass() {
+
+    protected AbstractClass() {
         super(software.amazon.jsii.JsiiObject.InitializationMode.JSII);
         this.setObjRef(software.amazon.jsii.JsiiEngine.getInstance().createNewObject(this));
     }
 
     /**
      * EXPERIMENTAL
+     * 
+     * @param name This parameter is required.
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
     public abstract java.lang.String abstractMethod(final java.lang.String name);
@@ -72,6 +75,8 @@ public abstract class AbstractClass extends software.amazon.jsii.tests.calculato
 
         /**
          * EXPERIMENTAL
+         * 
+         * @param name This parameter is required.
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
         @Override

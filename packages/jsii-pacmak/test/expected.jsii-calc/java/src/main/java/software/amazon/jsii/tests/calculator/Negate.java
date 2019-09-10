@@ -17,8 +17,11 @@ public class Negate extends software.amazon.jsii.tests.calculator.UnaryOperation
     protected Negate(final software.amazon.jsii.JsiiObject.InitializationMode initializationMode) {
         super(initializationMode);
     }
+
     /**
      * EXPERIMENTAL
+     * 
+     * @param operand This parameter is required.
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
     public Negate(final software.amazon.jsii.tests.calculator.lib.Value operand) {

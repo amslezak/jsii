@@ -8,6 +8,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface CalculatorProps extends software.amazon.jsii.JsiiSerializable {
+
     /**
      * EXPERIMENTAL
      */
@@ -27,18 +28,17 @@ public interface CalculatorProps extends software.amazon.jsii.JsiiSerializable {
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link CalculatorProps}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.lang.Number initialValue;
         private java.lang.Number maximumValue;
 
         /**
          * Sets the value of InitialValue
-         * @param initialValue the value to be set
+         * @param initialValue the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -49,7 +49,7 @@ public interface CalculatorProps extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of MaximumValue
-         * @param maximumValue the value to be set
+         * @param maximumValue the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -67,7 +67,6 @@ public interface CalculatorProps extends software.amazon.jsii.JsiiSerializable {
         public CalculatorProps build() {
             return new Jsii$Proxy(initialValue, maximumValue);
         }
-
     }
 
     /**
@@ -88,7 +87,6 @@ public interface CalculatorProps extends software.amazon.jsii.JsiiSerializable {
             this.initialValue = this.jsiiGet("initialValue", java.lang.Number.class);
             this.maximumValue = this.jsiiGet("maximumValue", java.lang.Number.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -139,6 +137,5 @@ public interface CalculatorProps extends software.amazon.jsii.JsiiSerializable {
             result = 31 * result + (this.maximumValue != null ? this.maximumValue.hashCode() : 0);
             return result;
         }
-
     }
 }

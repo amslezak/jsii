@@ -6,6 +6,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface NullShouldBeTreatedAsUndefinedData extends software.amazon.jsii.JsiiSerializable {
+
     /**
      * EXPERIMENTAL
      */
@@ -25,18 +26,17 @@ public interface NullShouldBeTreatedAsUndefinedData extends software.amazon.jsii
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link NullShouldBeTreatedAsUndefinedData}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.util.List<java.lang.Object> arrayWithThreeElementsAndUndefinedAsSecondArgument;
         private java.lang.Object thisShouldBeUndefined;
 
         /**
          * Sets the value of ArrayWithThreeElementsAndUndefinedAsSecondArgument
-         * @param arrayWithThreeElementsAndUndefinedAsSecondArgument the value to be set
+         * @param arrayWithThreeElementsAndUndefinedAsSecondArgument the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -47,7 +47,7 @@ public interface NullShouldBeTreatedAsUndefinedData extends software.amazon.jsii
 
         /**
          * Sets the value of ThisShouldBeUndefined
-         * @param thisShouldBeUndefined the value to be set
+         * @param thisShouldBeUndefined the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -65,7 +65,6 @@ public interface NullShouldBeTreatedAsUndefinedData extends software.amazon.jsii
         public NullShouldBeTreatedAsUndefinedData build() {
             return new Jsii$Proxy(arrayWithThreeElementsAndUndefinedAsSecondArgument, thisShouldBeUndefined);
         }
-
     }
 
     /**
@@ -86,7 +85,6 @@ public interface NullShouldBeTreatedAsUndefinedData extends software.amazon.jsii
             this.arrayWithThreeElementsAndUndefinedAsSecondArgument = this.jsiiGet("arrayWithThreeElementsAndUndefinedAsSecondArgument", java.util.List.class);
             this.thisShouldBeUndefined = this.jsiiGet("thisShouldBeUndefined", java.lang.Object.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -135,6 +133,5 @@ public interface NullShouldBeTreatedAsUndefinedData extends software.amazon.jsii
             result = 31 * result + (this.thisShouldBeUndefined != null ? this.thisShouldBeUndefined.hashCode() : 0);
             return result;
         }
-
     }
 }

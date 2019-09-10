@@ -16,10 +16,11 @@ public class Number extends software.amazon.jsii.tests.calculator.lib.Value impl
     protected Number(final software.amazon.jsii.JsiiObject.InitializationMode initializationMode) {
         super(initializationMode);
     }
+
     /**
      * Creates a Number object.
      * 
-     * @param value The number.
+     * @param value The number. This parameter is required.
      */
     @Deprecated
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Deprecated)

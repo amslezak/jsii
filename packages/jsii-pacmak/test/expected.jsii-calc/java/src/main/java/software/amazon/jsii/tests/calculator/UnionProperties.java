@@ -6,6 +6,7 @@ package software.amazon.jsii.tests.calculator;
 @javax.annotation.Generated(value = "jsii-pacmak")
 @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
 public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
+
     /**
      * EXPERIMENTAL
      */
@@ -25,18 +26,17 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
     static Builder builder() {
         return new Builder();
     }
-
     /**
      * A builder for {@link UnionProperties}
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    final class Builder {
+    public static final class Builder {
         private java.lang.Object bar;
         private java.lang.Object foo;
 
         /**
          * Sets the value of Bar
-         * @param bar the value to be set
+         * @param bar the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -47,7 +47,7 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of Bar
-         * @param bar the value to be set
+         * @param bar the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -58,7 +58,7 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of Bar
-         * @param bar the value to be set
+         * @param bar the value to be set. This parameter is required.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -69,7 +69,7 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of Foo
-         * @param foo the value to be set
+         * @param foo the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -80,7 +80,7 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
 
         /**
          * Sets the value of Foo
-         * @param foo the value to be set
+         * @param foo the value to be set.
          * @return {@code this}
          */
         @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
@@ -98,7 +98,6 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
         public UnionProperties build() {
             return new Jsii$Proxy(bar, foo);
         }
-
     }
 
     /**
@@ -119,7 +118,6 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
             this.bar = this.jsiiGet("bar", java.lang.Object.class);
             this.foo = this.jsiiGet("foo", java.lang.Object.class);
         }
-
 
         /**
          * Constructor that initializes the object based on literal property values passed by the {@link Builder}.
@@ -168,6 +166,5 @@ public interface UnionProperties extends software.amazon.jsii.JsiiSerializable {
             result = 31 * result + (this.foo != null ? this.foo.hashCode() : 0);
             return result;
         }
-
     }
 }

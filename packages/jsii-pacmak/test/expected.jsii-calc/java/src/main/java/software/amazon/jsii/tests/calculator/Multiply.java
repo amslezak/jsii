@@ -17,13 +17,14 @@ public class Multiply extends software.amazon.jsii.tests.calculator.BinaryOperat
     protected Multiply(final software.amazon.jsii.JsiiObject.InitializationMode initializationMode) {
         super(initializationMode);
     }
+
     /**
      * Creates a BinaryOperation.
      * 
      * EXPERIMENTAL
      * 
-     * @param lhs Left-hand side operand.
-     * @param rhs Right-hand side operand.
+     * @param lhs Left-hand side operand. This parameter is required.
+     * @param rhs Right-hand side operand. This parameter is required.
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
     public Multiply(final software.amazon.jsii.tests.calculator.lib.Value lhs, final software.amazon.jsii.tests.calculator.lib.Value rhs) {

@@ -17,16 +17,17 @@ public abstract class BinaryOperation extends software.amazon.jsii.tests.calcula
     protected BinaryOperation(final software.amazon.jsii.JsiiObject.InitializationMode initializationMode) {
         super(initializationMode);
     }
+
     /**
      * Creates a BinaryOperation.
      * 
      * EXPERIMENTAL
      * 
-     * @param lhs Left-hand side operand.
-     * @param rhs Right-hand side operand.
+     * @param lhs Left-hand side operand. This parameter is required.
+     * @param rhs Right-hand side operand. This parameter is required.
      */
     @software.amazon.jsii.Stability(software.amazon.jsii.Stability.Level.Experimental)
-    public BinaryOperation(final software.amazon.jsii.tests.calculator.lib.Value lhs, final software.amazon.jsii.tests.calculator.lib.Value rhs) {
+    protected BinaryOperation(final software.amazon.jsii.tests.calculator.lib.Value lhs, final software.amazon.jsii.tests.calculator.lib.Value rhs) {
         super(software.amazon.jsii.JsiiObject.InitializationMode.JSII);
         this.setObjRef(software.amazon.jsii.JsiiEngine.getInstance().createNewObject(this, new Object[] { java.util.Objects.requireNonNull(lhs, "lhs is required"), java.util.Objects.requireNonNull(rhs, "rhs is required") }));
     }
