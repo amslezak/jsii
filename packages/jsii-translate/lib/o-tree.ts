@@ -23,17 +23,26 @@ export interface OTreeOptions {
 }
 
 export class OTree {
+  public static simplify(xs: Array<OTree | string | undefined>): Array<OTree | string> {
+    return xs.filter(notUndefined).filter(notEmpty);
+  }
+
+  private readonly prefix: Array<OTree | string>;
+  private readonly children: Array<OTree | string>;
+
   constructor(
-    private readonly prefix: Array<string | OTree>,
-    private readonly children?: OTree[],
+    prefix: Array<OTree | string | undefined>,
+    children?: Array<OTree | string | undefined>,
     private readonly options: OTreeOptions = {}) {
+
+    this.prefix = OTree.simplify(prefix);
+    this.children = OTree.simplify(children || []);
   }
 
   public write(sink: OTreeSink) {
     const indent = this.options.indent || 0;
 
-    const xs = Array.isArray(this.prefix) ? this.prefix : [this.prefix];
-    for (const x of xs) {
+    for (const x of this.prefix) {
       sink.write(x);
     }
 
@@ -45,7 +54,7 @@ export class OTree {
       if (!first && this.options.separator) { sink.write(this.options.separator); }
       first = false;
 
-      child.write(sink);
+      sink.write(child);
     }
 
     sink.adjustIndent(-indent);
@@ -55,12 +64,16 @@ export class OTree {
     }
   }
 
+  public get isEmpty() {
+    return this.prefix.length + this.children.length === 0;
+  }
+
   public toString() {
     return `<INCORRECTLY STRINGIFIED ${this.prefix}>`;
   }
 }
 
-export const EMPTY_NODE = new OTree([]);
+export const NO_SYNTAX = new OTree([]);
 
 export class UnknownSyntax extends OTree {
 }
@@ -93,4 +106,18 @@ export class OTreeSink {
   private append(x: string) {
     this.fragments.push(x);
   }
+}
+
+function notUndefined<T>(x: T | undefined): x is T {
+  return x !== undefined;
+}
+
+function notEmpty(x: OTree | string) {
+  return x instanceof OTree ? !x.isEmpty : x !== '';
+}
+
+export function renderTree(tree: OTree): string {
+  const sink = new OTreeSink();
+  tree.write(sink);
+  return sink.toString();
 }

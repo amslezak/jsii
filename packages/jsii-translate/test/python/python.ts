@@ -4,20 +4,20 @@ import { visualizeTypeScriptAst } from "../../lib/util";
 
 const DEBUG = true;
 
-export async function ts2python(source: string): Promise<string> {
+export function ts2python(source: string): string {
   const src = new LiteralSource(source, 'test.ts');
 
   if (DEBUG) {
     // tslint:disable-next-line:no-console
-    console.log(await visualizeTypeScriptAst(src));
+    console.log(visualizeTypeScriptAst(src));
   }
-  const result = await translateTypeScript(src, new PythonVisitor());
+  const result = translateTypeScript(src, new PythonVisitor());
 
-  return renderTree(result.tree);
+  return renderTree(result.tree) + '\n';
 }
 
-export async function expectPython(source: string, expected: string) {
-  await expect(stripEmptyLines(await ts2python(source))).toEqual(stripEmptyLines(stripCommonWhitespace(expected)));
+export function expectPython(source: string, expected: string) {
+  expect(stripEmptyLines(ts2python(source))).toEqual(stripEmptyLines(stripCommonWhitespace(expected)));
 }
 
 function stripCommonWhitespace(x: string) {

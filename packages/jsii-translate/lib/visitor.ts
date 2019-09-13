@@ -1,5 +1,7 @@
 import ts = require('typescript');
-import { EMPTY_NODE, OTree, UnknownSyntax } from './o-tree';
+import { NO_SYNTAX, OTree, UnknownSyntax } from './o-tree';
+import { nodeChildren } from './typescript/ast-utils';
+import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from './typescript/imports';
 
 export interface AstContext {
   sourceFile: ts.SourceFile;
@@ -14,12 +16,10 @@ export interface AstContext {
 
 export interface AstVisitor {
   commentRange(node: ts.CommentRange, context: AstContext): OTree;
-  importEqualsDeclaration(node: ts.ImportEqualsDeclaration, context: AstContext): OTree;
-  importDeclaration(node: ts.ImportDeclaration, context: AstContext): OTree;
+  importStatement(node: ImportStatement, context: AstContext): OTree;
   stringLiteral(node: ts.StringLiteral, children: AstContext): OTree;
   functionDeclaration(node: ts.FunctionDeclaration, children: AstContext): OTree;
   identifier(node: ts.Identifier, children: AstContext): OTree;
-  syntaxList(node: ts.SyntaxList, children: AstContext): OTree;
   block(node: ts.Block, children: AstContext): OTree;
   parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext): OTree;
   returnStatement(node: ts.ReturnStatement, context: AstContext): OTree;
@@ -38,9 +38,19 @@ export interface AstVisitor {
   jsDoc(node: ts.JSDoc, context: AstContext): OTree;
   arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext): OTree;
   shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree;
+  forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree;
+  classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree;
+  constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree;
+  propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext): OTree;
+  methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree;
+  interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree;
+  propertySignature(node: ts.PropertySignature, context: AstContext): OTree;
 }
 
 export class VisualizeAstVisitor implements AstVisitor {
+  constructor(private readonly includeHandlerNames?: boolean) {
+  }
+
   public commentRange(node: ts.CommentRange, context: AstContext): OTree {
     return new OTree(['(Comment', context.textAt(node.pos, node.end)], [], { suffix: ')' });
   }
@@ -50,96 +60,122 @@ export class VisualizeAstVisitor implements AstVisitor {
     return new OTree([]);
   }
 
-  public importEqualsDeclaration(node: ts.ImportEqualsDeclaration, children: AstContext): OTree {
-    return nimpl(node, children);
-  }
-
-  public importDeclaration(node: ts.ImportDeclaration, children: AstContext): OTree {
-    return nimpl(node, children);
+  public importStatement(node: ImportStatement, context: AstContext): OTree {
+    return this.defaultNode('importStatement', node.node, context);
   }
 
   public functionDeclaration(node: ts.FunctionDeclaration, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('functionDeclaration', node, children);
   }
 
   public stringLiteral(node: ts.StringLiteral, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('stringLiteral', node, children);
   }
 
   public identifier(node: ts.Identifier, children: AstContext): OTree {
-    return nimpl(node, children);
-  }
-
-  public syntaxList(node: ts.SyntaxList, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('identifier', node, children);
   }
 
   public block(node: ts.Block, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('block', node, children);
   }
 
   public parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('parameterDeclaration', node, children);
   }
 
   public returnStatement(node: ts.ReturnStatement, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('returnStatement', node, children);
   }
 
   public binaryExpression(node: ts.BinaryExpression, children: AstContext): OTree {
-    return nimpl(node, children);
+    return this.defaultNode('binaryExpression', node, children);
   }
 
   public ifStatement(node: ts.IfStatement, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('ifStatement', node, context);
   }
 
   public propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('propertyAccessExpression', node, context);
   }
 
   public callExpression(node: ts.CallExpression, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('callExpression', node, context);
   }
 
   public expressionStatement(node: ts.ExpressionStatement, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('expressionStatement', node, context);
   }
 
   public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('token', node, context);
   }
 
   public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('objectLiteralExpression', node, context);
   }
 
   public newExpression(node: ts.NewExpression, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('newExpression', node, context);
   }
 
   public propertyAssignment(node: ts.PropertyAssignment, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('propertyAssignment', node, context);
   }
 
   public variableStatement(node: ts.VariableStatement, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('variableStatement', node, context);
   }
 
   public variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('variableDeclarationList', node, context);
   }
 
   public variableDeclaration(node: ts.VariableDeclaration, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('variableDeclaration', node, context);
   }
 
   public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('arrayLiteralExpression', node, context);
   }
 
   public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree {
-    return nimpl(node, context);
+    return this.defaultNode('shorthandPropertyAssignment', node, context);
+  }
+
+  public forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree {
+    return this.defaultNode('forOfStatement', node, context);
+  }
+
+  public classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree {
+    return this.defaultNode('classDeclaration', node, context);
+  }
+
+  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree {
+    return this.defaultNode('constructorDeclaration', node, context);
+  }
+
+  public propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext): OTree {
+    return this.defaultNode('propertyDeclaration', node, context);
+  }
+
+  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree {
+    return this.defaultNode('methodDeclaration', node, context);
+  }
+
+  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree {
+    return this.defaultNode('interfaceDeclaration', node, context);
+  }
+
+  public propertySignature(node: ts.PropertySignature, context: AstContext): OTree {
+    return this.defaultNode('propertySignature', node, context);
+  }
+
+  private defaultNode(handlerName: string, node: ts.Node, context: AstContext): OTree {
+    return nimpl(node, context, {
+      additionalInfo: this.includeHandlerNames ? handlerName : ''
+    });
   }
 }
 
@@ -159,12 +195,8 @@ export class DefaultVisitor implements AstVisitor {
     return new OTree([]);
   }
 
-  public importEqualsDeclaration(node: ts.ImportEqualsDeclaration, children: AstContext): OTree {
-    return nimpl(node, children);
-  }
-
-  public importDeclaration(node: ts.ImportDeclaration, children: AstContext): OTree {
-    return nimpl(node, children);
+  public importStatement(node: ImportStatement, context: AstContext): OTree {
+    return nimpl(node.node, context);
   }
 
   public functionDeclaration(node: ts.FunctionDeclaration, children: AstContext): OTree {
@@ -177,11 +209,6 @@ export class DefaultVisitor implements AstVisitor {
 
   public identifier(node: ts.Identifier, _children: AstContext): OTree {
     return new OTree([node.text]);
-  }
-
-  public syntaxList(_node: ts.SyntaxList, children: AstContext): OTree {
-    // This groups nodes together, don't really know the purpose but we don't need it.
-    return new OTree([], children.children(_node));
   }
 
   public block(node: ts.Block, children: AstContext): OTree {
@@ -270,9 +297,37 @@ export class DefaultVisitor implements AstVisitor {
   public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree {
     return nimpl(node, context);
   }
+
+  public forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
+
+  public classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
+
+  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
+
+  public propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
+
+  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
+
+  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
+
+  public propertySignature(node: ts.PropertySignature, context: AstContext): OTree {
+    return nimpl(node, context);
+  }
 }
 
-export function nimpl(node: ts.Node, context: AstContext) {
+export function nimpl(node: ts.Node, context: AstContext, options: { additionalInfo?: string} = {}) {
   const children = context.children(node);
 
   let syntaxKind = ts.SyntaxKind[node.kind];
@@ -281,7 +336,11 @@ export function nimpl(node: ts.Node, context: AstContext) {
     syntaxKind = 'OpenBraceToken';
   }
 
-  return new UnknownSyntax([`([${syntaxKind} ${context.textOf(node)}]`], children, {
+  const parts = [`(${syntaxKind}`];
+  if (options.additionalInfo) { parts.push(`{${options.additionalInfo}}`); }
+  parts.push(context.textOf(node));
+
+  return new UnknownSyntax([parts.join(' ')], children, {
     newline: children.length > 0,
     indent: 2,
     suffix: ')',
@@ -294,16 +353,25 @@ export interface TranslateResult {
   diagnostics: ts.Diagnostic[];
 }
 
-export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisitor): TranslateResult {
+export interface VisitOptions {
+  /**
+   * If enabled, don't translate the text of unknown nodes
+   *
+   * @default true
+   */
+  bestEffort?: boolean;
+}
+
+export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisitor, options: VisitOptions = {}): TranslateResult {
   const diagnostics = new Array<ts.Diagnostic>();
 
   const context: AstContext = {
     sourceFile: file,
     children(node: ts.Node) {
-      return node.getChildren(file).map(recurse);
+      return nodeChildren(node).map(recurse);
     },
     convert(node: ts.Node | undefined): OTree {
-      if (node === undefined) { return EMPTY_NODE; }
+      if (node === undefined) { return NO_SYNTAX; }
       return recurse(node);
     },
     convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>): OTree[] {
@@ -371,11 +439,10 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
         separator: '\n'
       });
     }
-    if (tree.kind === ts.SyntaxKind.SyntaxList) { return visitor.syntaxList(tree as ts.SyntaxList, context); }
 
     // Nodes with meaning
-    if (ts.isImportEqualsDeclaration(tree)) { return visitor.importEqualsDeclaration(tree, context); }
-    if (ts.isImportDeclaration(tree)) { return visitor.importDeclaration(tree, context); }
+    if (ts.isImportEqualsDeclaration(tree)) { return visitor.importStatement(analyzeImportEquals(tree, context), context); }
+    if (ts.isImportDeclaration(tree)) { return visitor.importStatement(analyzeImportDeclaration(tree, context), context); }
     if (ts.isStringLiteral(tree)) { return visitor.stringLiteral(tree, context); }
     if (ts.isFunctionDeclaration(tree)) { return visitor.functionDeclaration(tree, context); }
     if (ts.isIdentifier(tree)) { return visitor.identifier(tree, context); }
@@ -397,14 +464,28 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
     if (ts.isJSDoc(tree)) { return visitor.jsDoc(tree, context); }
     if (ts.isArrayLiteralExpression(tree)) { return visitor.arrayLiteralExpression(tree, context); }
     if (ts.isShorthandPropertyAssignment(tree)) { return visitor.shorthandPropertyAssignment(tree, context); }
+    if (ts.isForOfStatement(tree)) { return visitor.forOfStatement(tree, context); }
+    if (ts.isClassDeclaration(tree)) { return visitor.classDeclaration(tree, context); }
+    if (ts.isConstructorDeclaration(tree)) { return visitor.constructorDeclaration(tree, context); }
+    if (ts.isPropertyDeclaration(tree)) { return visitor.propertyDeclaration(tree, context); }
+    if (ts.isMethodDeclaration(tree)) { return visitor.methodDeclaration(tree, context); }
+    if (ts.isInterfaceDeclaration(tree)) { return visitor.interfaceDeclaration(tree, context); }
+    if (ts.isPropertySignature(tree)) { return visitor.propertySignature(tree, context); }
 
     const nodeKind = ts.SyntaxKind[tree.kind];
 
-    context.report(tree, `Unsupported TypeScript language feature (${nodeKind}). Please rewrite this example.`);
+    // tslint:disable-next-line:max-line-length
+    context.report(tree, `This TypeScript language feature (${nodeKind}) is not supported in examples because we cannot translate it. Please rewrite this example.`);
 
-    return new UnknownSyntax([`<${nodeKind}>`], context.children(tree), {
-      newline: true,
-      indent: 2,
-    });
+    if (options.bestEffort !== false) {
+      // When doing best-effort conversion and we don't understand the node type, just return the complete text of it as-is
+      return new OTree([context.textOf(tree)]);
+    } else {
+      // Otherwise, show a placeholder indicating we don't recognize the type
+      return new UnknownSyntax([`<${nodeKind} ${context.textOf(tree)}>`], context.children(tree), {
+        newline: true,
+        indent: 2,
+      });
+    }
   }
 }

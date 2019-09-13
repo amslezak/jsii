@@ -1,7 +1,7 @@
 import fs = require("fs");
 import yargs = require('yargs');
 import { FileSource, isErrorDiagnostic, LiteralSource, printDiagnostics,
-  renderTree, translateMarkdown, translateTypeScript } from '../lib';
+  renderTree, translateMarkdown, TranslateOptions, translateTypeScript } from '../lib';
 import { PythonVisitor } from '../lib/languages/python';
 import { VisualizeAstVisitor } from '../lib/visitor';
 
@@ -14,9 +14,15 @@ async function main() {
     .version(require('../package.json').version)
     .argv;
 
+  const options: TranslateOptions = {};
+
   let visitor;
   if (argv.python) { visitor = new PythonVisitor(); }
-  if (!visitor) { visitor = new VisualizeAstVisitor(); }
+  if (!visitor) {
+    // Default to visualizing AST, including nodes we don't recognize yet
+    visitor = new VisualizeAstVisitor();
+    options.bestEffort = false;
+  }
 
   const fakeInputFileName = argv.markdown ? 'stdin.md' : 'stdin.ts';
 
@@ -25,10 +31,10 @@ async function main() {
       : new LiteralSource(fs.readFileSync(0, "utf-8"), fakeInputFileName);
 
   const result = argv.markdown
-      ? await translateMarkdown(source, visitor)
-      : await translateTypeScript(source, visitor);
+      ? translateMarkdown(source, visitor, options)
+      : translateTypeScript(source, visitor, options);
 
-  process.stdout.write(renderTree(result.tree));
+  process.stdout.write(renderTree(result.tree) + '\n');
 
   if (result.diagnostics.length > 0) {
     printDiagnostics(result.diagnostics, process.stderr);

@@ -60,3 +60,14 @@ test('block without braces', async () => {
   if x == 3: print("hello")
   `);
 });
+
+test('for/of loop', async () => {
+  await expectPython(`
+  for (const x of xs) {
+    console.log(x);
+  }
+  `, `
+  for x in xs:
+      print(x)
+  `);
+});

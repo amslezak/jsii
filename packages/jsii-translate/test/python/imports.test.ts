@@ -19,8 +19,8 @@ test('import star-as', async () => {
 
 test('selective import', async () => {
   await expectPython(`
-  import { one, Two, someThree } as mod from '@scope/some-module';
+  import { one, Two, someThree, four as renamed } from '@scope/some-module';
   `, `
-  from scope.some_module import one, Two, some_three
+  from scope.some_module import one, Two, some_three, four as renamed
   `);
 });
