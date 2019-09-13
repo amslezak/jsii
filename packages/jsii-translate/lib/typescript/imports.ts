@@ -1,6 +1,6 @@
 import ts = require('typescript');
 import { AstContext } from '../visitor';
-import { stringFromLiteral, matchAst, nodeOfType, allOfType } from "./ast-utils";
+import { allOfType, matchAst, nodeOfType, stringFromLiteral } from "./ast-utils";
 
 /**
  * Our own unification of import statements
