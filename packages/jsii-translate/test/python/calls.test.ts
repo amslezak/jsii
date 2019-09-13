@@ -70,16 +70,14 @@ test('translate object literals only one level deep', async () => {
   `);
 });
 
-test('translate object literals second level with newlinesk', async () => {
+test('translate object literals second level with newlines', async () => {
   await expectPython(`
   foo(25, { foo: 3, deeper: {
     a: 1,
     b: 2
   });
   `, `
-  foo(25,
-      foo=3,
-      deeper={
+  foo(25, foo=3, deeper={
           "a": 1,
           "b": 2})
   `);

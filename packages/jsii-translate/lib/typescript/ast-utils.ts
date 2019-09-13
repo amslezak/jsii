@@ -1,4 +1,6 @@
 import ts = require('typescript');
+import { OTree } from '../o-tree';
+import { AstContext } from '../visitor';
 
 export function stripCommentMarkers(comment: string, multiline: boolean) {
   if (multiline) {
@@ -130,4 +132,90 @@ export function matchAst<A>(node: ts.Node, matcher: AstMatcher<A>, cb?: (binding
     return !!matched;
   }
   return matched;
+}
+
+// tslint:disable-next-line:max-line-length
+export function preserveSeparatingNewlines(rendered: Array<OTree | string>, sourceNodes: Iterable<ts.Node>, context: AstContext): Array<OTree | string> {
+  const ret: Array<OTree | string> = [];
+
+  let lastNode;
+  for (const [rend, node] of zip(rendered, sourceNodes)) {
+    if (lastNode && node && containsNewline(context.textBetween(lastNode, node))) {
+      ret.push('\n');
+    }
+    lastNode = node;
+    ret.push(rend);
+  }
+
+  return ret;
+}
+
+function zip<A, B>(xs: Iterable<A>, ys: Iterable<B>): IterableIterator<[A, B | undefined]>;
+function zip<A, B, C>(xs: Iterable<A>, ys: Iterable<B>, defY: C): IterableIterator<[A, B | C]>;
+function* zip<A, B, C>(xs: Iterable<A>, ys: Iterable<B>, defY?: C): IterableIterator<[A, B | C]> {
+  const iterX = xs[Symbol.iterator]();
+  const iterY = ys[Symbol.iterator]();
+
+  let x = iterX.next();
+  let y = iterY.next();
+  while (!x.done) {
+    yield [x.value, !y.done ? y.value : defY as any];
+
+    x = iterX.next();
+    if (!y.done) { y = iterY.next(); }
+  }
+}
+
+export function containsNewline(x: string) {
+  return x.indexOf('\n') !== -1;
+}
+
+const WHITESPACE = [' ', '\t', '\r', '\n'];
+
+/**
+ * Extract single-line and multi-line comments from the given string
+ *
+ * Rewritten because I can't get ts.getLeadingComments and ts.getTrailingComments to do what I want.
+ */
+export function extractComments(text: string, start: number): ts.CommentRange[] {
+  const ret: ts.CommentRange[] = [];
+
+  let pos = start;
+  while (pos < text.length) {
+    const ch = text[pos];
+
+    if (WHITESPACE.includes(ch)) { pos++; continue; }
+
+    if (ch === '/' && text[pos + 1] === '/') {
+      scanSinglelineComment();
+      continue;
+    }
+
+    if (ch === '/' && text[pos + 1] === '*') {
+      scanMultilineComment();
+      continue;
+    }
+
+    break; // Non-whitespace, non-comment, must be a regular token which means we're at the end of the whitespace block
+  }
+
+  return ret;
+
+  function scanMultilineComment() {
+    const end = findNext('*/', pos + 2);
+    ret.push({ kind: ts.SyntaxKind.MultiLineCommentTrivia, hasTrailingNewLine: ['\n', '\r'].includes(text[end + 2]), pos, end });
+    pos = end + 2;
+  }
+
+  function scanSinglelineComment() {
+    const nl = Math.min(findNext('\r', pos + 2), findNext('\n', pos + 2));
+    ret.push({ kind: ts.SyntaxKind.SingleLineCommentTrivia, hasTrailingNewLine: true, pos, end: nl });
+    pos = nl + 1;
+  }
+
+  function findNext(sub: string, startPos: number) {
+    const f = text.indexOf(sub, startPos);
+    if (f === -1) { return text.length; }
+    return f;
+  }
 }

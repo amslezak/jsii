@@ -1,6 +1,6 @@
 import ts = require('typescript');
 import { NO_SYNTAX, OTree, UnknownSyntax } from './o-tree';
-import { nodeChildren } from './typescript/ast-utils';
+import { extractComments, nodeChildren } from './typescript/ast-utils';
 import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from './typescript/imports';
 
 export interface AstContext {
@@ -11,7 +11,16 @@ export interface AstContext {
   convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>): OTree[];
   textOf(node: ts.Node): string;
   textAt(pos: number, end: number): string;
+  textBetween(node1: ts.Node, node2: ts.Node): string;
+  textFromTo(node1: ts.Node, node2: ts.Node): string;
   report(node: ts.Node, message: string, category?: ts.DiagnosticCategory): void;
+
+  /**
+   * Indicate that the returned node is a spot to render comments
+   *
+   * Can't properly do this generically as we don't know which nodes get rendered and which don't.
+   */
+//  includeComments(node: OTree): OTree;
 }
 
 export interface AstVisitor {
@@ -344,7 +353,8 @@ export function nimpl(node: ts.Node, context: AstContext, options: { additionalI
     newline: children.length > 0,
     indent: 2,
     suffix: ')',
-    separator: '\n'
+    separator: '\n',
+    attachComment: true
   });
 }
 
@@ -391,6 +401,12 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
         start: node.getStart(file),
         length: node.getWidth(file)
       });
+    },
+    textBetween(node1: ts.Node, node2: ts.Node): string {
+      return file.text.substring(node1.getEnd(), node2.getStart(file));
+    },
+    textFromTo(node1: ts.Node, node2: ts.Node): string {
+      return file.text.substring(node1.getStart(file), node2.getStart(file));
     }
   };
 
@@ -399,10 +415,11 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
   // Return leading comments, making sure to never return anything for a given
   // starting position more than once. Multiple nodes in the tree may have the
   // same "fullStart" which would return the same comments.
-  function getLeadingComments(start: number) {
+  function extractLeadingComments(node: ts.Node) {
+    const start = node.getFullStart();
     if (scannedForComments.has(start)) { return []; }
     scannedForComments.add(start);
-    return ts.getLeadingCommentRanges(file.getText(), start) || [];
+    return extractComments(file.text, start);
   }
 
   return {
@@ -414,9 +431,17 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
     // Basic transform of node
     const transformed = transformNode(tree);
 
+    if (!transformed.attachComment) { return transformed; }
+
     // Add comments
-    const leadingComments = getLeadingComments(tree.getFullStart());
-    const trailingComments = ts.getTrailingCommentRanges(file.getText(), tree.getEnd()) || [];
+    const leadingComments = extractLeadingComments(tree);
+
+    console.log(context.textAt(tree.getFullStart(), tree.getEnd()), leadingComments);
+    console.log(new Error().stack);
+
+    // FIXME: No trailing comments for now, they're too tricky
+    // const trailingComments = extractComments(file.getText(), tree.getEnd()) || [];
+    const trailingComments: ts.CommentRange[] = [];
 
     if (leadingComments.length + trailingComments.length > 0) {
       // Combine into a new node
@@ -424,7 +449,7 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
         ...leadingComments.map(c => visitor.commentRange(c, context)),
         transformed,
         ...trailingComments.map(c => visitor.commentRange(c, context)),
-      ]);
+      ], [], { attachComment: true });
     } else {
       // Let's not unnecessarily complicate the tree with additional levels, just
       // return transformed
