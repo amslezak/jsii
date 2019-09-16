@@ -1,6 +1,6 @@
 import { expectPython } from "./python";
 
-test.only('interleave single line comments with function call', () => {
+test('interleave single line comments with function call', () => {
   expectPython(`
   someFunction(arg1, {
     // A comment before arg2

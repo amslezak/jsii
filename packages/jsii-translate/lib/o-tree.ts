@@ -25,6 +25,17 @@ export interface OTreeOptions {
    * Whether this part of the generated syntax is okay to attach a comment to
    */
   attachComment?: boolean;
+
+  /**
+   * If set, a unique key which will cause only one node with the given key to be rendered.
+   *
+   * The outermost key is the one that will be rendered.
+   *
+   * Used to make it easier to keep the state necessary to render comments
+   * only once in the output tree, rather than keep the state in the
+   * language rendered.
+   */
+  renderOnce?: string;
 }
 
 export class OTree {
@@ -48,6 +59,8 @@ export class OTree {
   }
 
   public write(sink: OTreeSink) {
+    if (!sink.tagOnce(this.options.renderOnce)) { return; }
+
     const indent = this.options.indent || 0;
 
     for (const x of this.prefix) {
@@ -93,6 +106,14 @@ export interface SinkMark {
 export class OTreeSink {
   private indent = 0;
   private readonly fragments = new Array<string>();
+  private singletonsRendered = new Set<string>();
+
+  public tagOnce(key: string | undefined): boolean {
+    if (key === undefined) { return true; }
+    if (this.singletonsRendered.has(key)) { return false; }
+    this.singletonsRendered.add(key);
+    return true;
+  }
 
   public mark(): SinkMark {
     const self = this;

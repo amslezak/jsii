@@ -20,7 +20,11 @@ export class PythonVisitor extends DefaultVisitor {
   public commentRange(node: ts.CommentRange, context: AstContext): OTree {
     const commentText = stripCommentMarkers(context.textAt(node.pos, node.end), node.kind === ts.SyntaxKind.MultiLineCommentTrivia);
 
-    return new OTree([...commentText.split('\n').map(l => `# ${l}\n`)]);
+    return new OTree([...commentText.split('\n').map(l => `# ${l}\n`)], [], {
+      // Make sure comment is rendered exactly once in the output tree, no
+      // matter how many source nodes it is attached to.
+      renderOnce: `comment-${node.pos}`
+    });
   }
 
   public importStatement(node: ImportStatement, context: AstContext): OTree {
@@ -164,8 +168,6 @@ export class PythonVisitor extends DefaultVisitor {
   }
 
   public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext): OTree {
-    console.log(context.convertAll(node.properties), node.properties, context, node, true);
-
     return new OTree(['{'],
       [preserveNewlines(context.convertAll(node.properties), node.properties, context, node, true)],
       {
@@ -344,7 +346,7 @@ export class PythonVisitor extends DefaultVisitor {
         const precedingArg = args.length > 1 ? args[args.length - 2] : undefined;
 
         // tslint:disable-next-line:max-line-length
-        converted.push(preserveNewlines(lastArg.properties.map(convertProp), lastArg.properties, context, precedingArg));
+        converted.push(preserveNewlines(lastArg.properties.map(p => context.attachComments(p,  convertProp(p))), lastArg.properties, context, precedingArg));
       }
       if (this.explodedStructVar && ts.isIdentifier(lastArg) && lastArg.text === this.explodedStructVar.variableName) {
         // Exploded struct, render fields as keyword arguments

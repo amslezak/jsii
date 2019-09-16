@@ -2,7 +2,7 @@ import { LiteralSource, renderTree, translateTypeScript } from "../../lib";
 import { PythonVisitor } from "../../lib/languages/python";
 import { visualizeTypeScriptAst } from "../../lib/util";
 
-const DEBUG = true;
+const DEBUG = false;
 
 export function ts2python(source: string): string {
   const src = new LiteralSource(source, 'test.ts');

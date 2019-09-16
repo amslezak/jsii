@@ -14,6 +14,7 @@ export interface AstContext {
   textBetween(node1: ts.Node, node2: ts.Node): string;
   textFromTo(node1: ts.Node, node2: ts.Node): string;
   report(node: ts.Node, message: string, category?: ts.DiagnosticCategory): void;
+  attachComments(node: ts.Node, rendered: OTree): OTree;
 
   /**
    * Indicate that the returned node is a spot to render comments
@@ -407,20 +408,30 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
     },
     textFromTo(node1: ts.Node, node2: ts.Node): string {
       return file.text.substring(node1.getStart(file), node2.getStart(file));
+    },
+    attachComments(node: ts.Node, transformed: OTree): OTree {
+      // Add comments
+
+      const leadingComments = extractComments(file.text, node.getFullStart());
+
+      // FIXME: No trailing comments for now, they're too tricky
+      // const trailingComments = extractComments(file.getText(), tree.getEnd()) || [];
+      const trailingComments: ts.CommentRange[] = [];
+
+      if (leadingComments.length + trailingComments.length > 0) {
+        // Combine into a new node
+        return new OTree([
+          ...leadingComments.map(c => visitor.commentRange(c, context)),
+          transformed,
+          ...trailingComments.map(c => visitor.commentRange(c, context)),
+        ], [], { attachComment: true });
+      } else {
+        // Let's not unnecessarily complicate the tree with additional levels, just
+        // return transformed
+        return transformed;
+      }
     }
   };
-
-  const scannedForComments = new Set<number>();
-
-  // Return leading comments, making sure to never return anything for a given
-  // starting position more than once. Multiple nodes in the tree may have the
-  // same "fullStart" which would return the same comments.
-  function extractLeadingComments(node: ts.Node) {
-    const start = node.getFullStart();
-    if (scannedForComments.has(start)) { return []; }
-    scannedForComments.add(start);
-    return extractComments(file.text, start);
-  }
 
   return {
     tree: recurse(root),
@@ -430,31 +441,9 @@ export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisito
   function recurse(tree: ts.Node) {
     // Basic transform of node
     const transformed = transformNode(tree);
-
     if (!transformed.attachComment) { return transformed; }
 
-    // Add comments
-    const leadingComments = extractLeadingComments(tree);
-
-    console.log(context.textAt(tree.getFullStart(), tree.getEnd()), leadingComments);
-    console.log(new Error().stack);
-
-    // FIXME: No trailing comments for now, they're too tricky
-    // const trailingComments = extractComments(file.getText(), tree.getEnd()) || [];
-    const trailingComments: ts.CommentRange[] = [];
-
-    if (leadingComments.length + trailingComments.length > 0) {
-      // Combine into a new node
-      return new OTree([
-        ...leadingComments.map(c => visitor.commentRange(c, context)),
-        transformed,
-        ...trailingComments.map(c => visitor.commentRange(c, context)),
-      ], [], { attachComment: true });
-    } else {
-      // Let's not unnecessarily complicate the tree with additional levels, just
-      // return transformed
-      return transformed;
-    }
+    return context.attachComments(tree, transformed);
   }
 
   function transformNode(tree: ts.Node): OTree {
