@@ -1,5 +1,5 @@
 import ts = require('typescript');
-import { isStructInterface } from '../jsii/jsii-utils';
+import { isStructType, propertiesOfType } from '../jsii/jsii-utils';
 import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
 import { containsNewline, matchAst, nodeOfType, preserveSeparatingNewlines, stripCommentMarkers } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
@@ -8,16 +8,67 @@ import { AstContext, DefaultVisitor, nimpl } from "../visitor";
 
 interface StructVar {
   variableName: string;
-  typeName: string;
+  type: ts.Type | undefined;
 }
 
-export class PythonVisitor extends DefaultVisitor {
-  private readonly structs = new Map<string, StructInformation>();
-  private currentStruct: StructInformation | undefined;
-  private currentMethod: string | undefined;
-  private explodedStructVar: StructVar | undefined;
+type ReturnFromTree<A> = { value?: A; };
 
-  public commentRange(node: ts.CommentRange, context: AstContext): OTree {
+interface PythonLanguageContext {
+  /**
+   * Whether we're currently rendering a parameter in tail position
+   *
+   * If so, and the parameter is of type struct, explode it to keyword args
+   * and return its information in `returnExplodedParameter`.
+   */
+  readonly tailPositionParameter?: boolean;
+
+  /**
+   * Used to return details about any exploded parameter
+   */
+  readonly returnExplodedParameter?: ReturnFromTree<StructVar>;
+
+  /**
+   * Whether we're currently rendering a value/expression in tail position
+   *
+   * If so, and the expression seems to be of a struct type, explode it
+   * to keyword args.
+   */
+  readonly tailPositionArgument?: boolean;
+
+  /**
+   * Whether object literal members should render themselves as dict
+   * members or keyword args
+   */
+  readonly renderObjectLiteralAsKeywords?: boolean;
+
+  /**
+   * In a code block, if any parameter is exploded, information about the parameter here
+   */
+  readonly explodedParameter?: StructVar;
+
+  /**
+   * Whether we're rendering a method or property inside a class
+   */
+  readonly inClass?: boolean;
+
+  /**
+   * If we're in a method, what is it's name
+   *
+   * (Used to render super() call.);
+   */
+  readonly currentMethodName?: string;
+}
+
+type PythonVisitorContext = AstContext<PythonLanguageContext>;
+
+export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
+  public readonly defaultContext = {};
+
+  public mergeContext(old: PythonLanguageContext, update: PythonLanguageContext) {
+    return Object.assign({}, old, update);
+  }
+
+  public commentRange(node: ts.CommentRange, context: PythonVisitorContext): OTree {
     const commentText = stripCommentMarkers(context.textAt(node.pos, node.end), node.kind === ts.SyntaxKind.MultiLineCommentTrivia);
 
     return new OTree([...commentText.split('\n').map(l => `# ${l}\n`)], [], {
@@ -27,7 +78,7 @@ export class PythonVisitor extends DefaultVisitor {
     });
   }
 
-  public importStatement(node: ImportStatement, context: AstContext): OTree {
+  public importStatement(node: ImportStatement, context: PythonVisitorContext): OTree {
     const moduleName = this.convertModuleReference(node.packageName);
     if (node.imports.import === 'full') {
       return new OTree([`import ${moduleName} as ${mangleIdentifier(node.imports.alias)}`], [], {
@@ -50,31 +101,31 @@ export class PythonVisitor extends DefaultVisitor {
     return nimpl(node.node, context);
   }
 
-  public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext): OTree {
+  public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: PythonVisitorContext): OTree {
     const text = context.textOf(node);
     const mapped = TOKEN_REWRITES[text];
     if (mapped) { return new OTree([mapped]); }
     return super.token(node, context);
   }
 
-  public identifier(node: ts.Identifier, _context: AstContext) {
+  public identifier(node: ts.Identifier, _context: PythonVisitorContext) {
     const originalIdentifier = node.text;
     return new OTree([mangleIdentifier(originalIdentifier)]);
   }
 
-  public functionDeclaration(node: ts.FunctionDeclaration, context: AstContext): OTree {
+  public functionDeclaration(node: ts.FunctionDeclaration, context: PythonVisitorContext): OTree {
     return this.functionLike(node, context);
   }
 
-  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree {
-    return this.functionLike(node, context, { isConstructor: true, inClass: true });
+  public constructorDeclaration(node: ts.ConstructorDeclaration, context: PythonVisitorContext): OTree {
+    return this.functionLike(node, context, { isConstructor: true });
   }
 
-  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree {
-    return this.functionLike(node, context, { inClass: true });
+  public methodDeclaration(node: ts.MethodDeclaration, context: PythonVisitorContext): OTree {
+    return this.functionLike(node, context);
   }
 
-  public expressionStatement(node: ts.ExpressionStatement, context: AstContext): OTree {
+  public expressionStatement(node: ts.ExpressionStatement, context: PythonVisitorContext): OTree {
     const text = context.textOf(node);
     if (text === 'true') { return new OTree(['True']); }
     if (text === 'false') { return new OTree(['False']); }
@@ -82,34 +133,32 @@ export class PythonVisitor extends DefaultVisitor {
     return super.expressionStatement(node, context);
   }
 
-  public functionLike(node: ts.FunctionLikeDeclarationBase, context: AstContext, opts: { isConstructor?: boolean, inClass?: boolean } = {}): OTree {
+  // tslint:disable-next-line:max-line-length
+  public functionLike(node: ts.FunctionLikeDeclarationBase, context: PythonVisitorContext, opts: { isConstructor?: boolean } = {}): OTree {
     const methodName = opts.isConstructor ? '__init__' : renderTree(context.convert(node.name));
-    this.currentMethod = methodName;
 
-    const [paramDecls, explodedVar] = this.convertFunctionCallParameters(node.parameters, context);
-    this.explodedStructVar = explodedVar;
+    const [paramDecls, explodedParameter] = this.convertFunctionCallParameters(node.parameters, context);
 
     const ret = new OTree([
       'def ',
       methodName,
       '(',
       new OTree([], [
-        opts.inClass ? 'self' : undefined,
+        context.currentContext.inClass ? 'self' : undefined,
         ...paramDecls,
       ], {
         separator: ', ',
       }),
       '): ',
-    ], [context.convert(node.body)], {
+    ], [context.convert(node.body, { explodedParameter, currentMethodName: methodName })], {
       suffix: '\n\n',
       attachComment: true
     });
 
-    this.explodedStructVar = undefined;
     return ret;
   }
 
-  public block(node: ts.Block, context: AstContext): OTree {
+  public block(node: ts.Block, context: PythonVisitorContext): OTree {
     const children = node.statements.length > 0
         ? context.convertAll(node.statements)
         : [new OTree(['pass'])];
@@ -122,11 +171,11 @@ export class PythonVisitor extends DefaultVisitor {
     });
   }
 
-  public callExpression(node: ts.CallExpression, context: AstContext): OTree {
+  public callExpression(node: ts.CallExpression, context: PythonVisitorContext): OTree {
     let expressionText: OTree | string = context.convert(node.expression);
 
-    if (matchAst(node.expression, nodeOfType(ts.SyntaxKind.SuperKeyword)) && this.currentMethod) {
-      expressionText = 'super().' + this.currentMethod;
+    if (matchAst(node.expression, nodeOfType(ts.SyntaxKind.SuperKeyword)) && context.currentContext.currentMethodName) {
+      expressionText = 'super().' + context.currentContext.currentMethodName;
     }
 
     return new OTree([
@@ -136,26 +185,45 @@ export class PythonVisitor extends DefaultVisitor {
       ')'], [], { attachComment: true });
   }
 
-  public propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext) {
+  public propertyAccessExpression(node: ts.PropertyAccessExpression, context: PythonVisitorContext) {
     const fullText = context.textOf(node);
     if (fullText in BUILTIN_FUNCTIONS) {
       return new OTree([BUILTIN_FUNCTIONS[fullText]]);
     }
 
+    const explodedParameter = context.currentContext.explodedParameter;
+
     // We might be in a context where we've exploded this struct into arguments,
     // in which case we will return just the accessed variable.
-    if (this.explodedStructVar && context.textOf(node.expression) === this.explodedStructVar.variableName) {
+    if (explodedParameter && context.textOf(node.expression) === explodedParameter.variableName) {
       return context.convert(node.name);
     }
 
     return super.propertyAccessExpression(node, context);
   }
 
-  public parameterDeclaration(node: ts.ParameterDeclaration, context: AstContext): OTree {
+  public parameterDeclaration(node: ts.ParameterDeclaration, context: PythonVisitorContext): OTree {
+    if (context.currentContext.tailPositionParameter && node.type) {
+      const type = context.typeOfType(node.type);
+      if (isStructType(type)) {
+        // Return the parameter that we exploded so that we can use this information
+        // while translating the body.
+        if (context.currentContext.returnExplodedParameter) {
+          context.currentContext.returnExplodedParameter.value = {
+            variableName: context.textOf(node.name),
+            type,
+          };
+        }
+
+        // Explode to fields
+        return new OTree([], ['*', ...propertiesOfType(type)], { separator: ', ' });
+      }
+    }
+
     return new OTree([context.convert(node.name)]);
   }
 
-  public ifStatement(node: ts.IfStatement, context: AstContext): OTree {
+  public ifStatement(node: ts.IfStatement, context: PythonVisitorContext): OTree {
     const ifStmt = new OTree(
       ['if ', context.convert(node.expression), ': '],
       [context.convert(node.thenStatement)], { attachComment: true });
@@ -167,28 +235,76 @@ export class PythonVisitor extends DefaultVisitor {
     }) : ifStmt;
   }
 
-  public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext): OTree {
-    return new OTree(['{'],
-      [preserveNewlines(context.convertAll(node.properties), node.properties, context, node, true)],
+  public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: PythonVisitorContext): OTree {
+    if (context.currentContext.tailPositionArgument) {
+      // Explode into parent call site
+      return new OTree([], [
+        preserveNewlines(context.convertAll(node.properties, { renderObjectLiteralAsKeywords: true }), node.properties, context, node, true)],
+        {
+          separator: ', ',
+          indent: 4,
+          attachComment: true,
+        });
+    }
+
+    let prefix = '{';
+    let suffix = '}';
+    let isStruct = false;
+
+    // If the type of the object literal is a struct, use a class constructor
+    const type = context.typeOfExpression(node);
+    if (type && isStructType(type)) {
+      prefix = type.symbol.name + '(';
+      suffix = ')';
+      isStruct = true;
+    }
+
+    return new OTree([prefix],
+      [preserveNewlines(context.convertAll(node.properties, { renderObjectLiteralAsKeywords: isStruct }), node.properties, context, node, true)],
       {
         separator: ', ',
         indent: 4,
-        suffix: '}',
+        suffix,
         attachComment: true,
       },
     );
   }
 
-  public propertyAssignment(node: ts.PropertyAssignment, context: AstContext): OTree {
+  public propertyAssignment(node: ts.PropertyAssignment, context: PythonVisitorContext): OTree {
+    let before = '"';
+    let mid = '": ';
+
+    if (context.currentContext.renderObjectLiteralAsKeywords) {
+      before = '';
+      mid = '=';
+    }
+
     return new OTree([
-      '"',
+      before,
       context.convert(node.name),
-      '": ',
-      context.convert(node.initializer)
+      mid,
+      context.convert(node.initializer, {})
     ], [], { attachComment: true });
   }
 
-  public newExpression(node: ts.NewExpression, context: AstContext): OTree {
+  public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: PythonVisitorContext): OTree {
+    let before = '"';
+    let mid = '": ';
+
+    if (context.currentContext.renderObjectLiteralAsKeywords) {
+      before = '';
+      mid = '=';
+    }
+
+    return new OTree([
+      before,
+      context.convert(node.name),
+      mid,
+      context.convert(node.name)
+    ], [], { attachComment: true });
+  }
+
+  public newExpression(node: ts.NewExpression, context: PythonVisitorContext): OTree {
     return new OTree([
       context.convert(node.expression),
       '(',
@@ -197,7 +313,7 @@ export class PythonVisitor extends DefaultVisitor {
     ], [], { attachComment: true });
   }
 
-  public variableDeclaration(node: ts.VariableDeclaration, context: AstContext): OTree {
+  public variableDeclaration(node: ts.VariableDeclaration, context: PythonVisitorContext): OTree {
     return new OTree([
       context.convert(node.name),
       ' = ',
@@ -209,16 +325,7 @@ export class PythonVisitor extends DefaultVisitor {
     return new OTree(['self']);
   }
 
-  public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree {
-    return new OTree([
-      '"',
-      context.convert(node.name),
-      '": ',
-      context.convert(node.name)
-    ], [], { attachComment: true });
-  }
-
-  public forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree {
+  public forOfStatement(node: ts.ForOfStatement, context: PythonVisitorContext): OTree {
     // This is what a "for (const x of ...)" looks like in the AST
     let variableName = '???';
 
@@ -238,11 +345,11 @@ export class PythonVisitor extends DefaultVisitor {
     ], [context.convert(node.statement)], { attachComment: true });
   }
 
-  public classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree {
+  public classDeclaration(node: ts.ClassDeclaration, context: PythonVisitorContext): OTree {
     const heritage = flat(Array.from(node.heritageClauses || []).map(h => Array.from(h.types))).map(t => context.convert(t.expression));
     const hasHeritage = heritage.length > 0;
 
-    const members = context.convertAll(node.members);
+    const members = context.convertAll(node.members, { inClass: true });
     if (members.length === 0) {
       members.push(new OTree(['pass']));
     }
@@ -263,7 +370,7 @@ export class PythonVisitor extends DefaultVisitor {
     });
   }
 
-  public propertyDeclaration(_node: ts.PropertyDeclaration, _context: AstContext): OTree {
+  public propertyDeclaration(_node: ts.PropertyDeclaration, _context: PythonVisitorContext): OTree {
     return new OTree([]);
   }
 
@@ -273,27 +380,13 @@ export class PythonVisitor extends DefaultVisitor {
    * Best-effort, we remember the fields of struct interfaces and keep track of
    * them. Fortunately we can determine from the name whether what to do.
    */
-  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree {
-    const name = context.textOf(node.name);
-    if (isStructInterface(name)) {
-      this.currentStruct = new StructInformation();
-
-      // Evaluate for side effect
-      context.convertAll(node.members);
-
-      this.structs.set(name, this.currentStruct);
-      this.currentStruct = undefined;
-    }
-
+  public interfaceDeclaration(_node: ts.InterfaceDeclaration, _context: PythonVisitorContext): OTree {
     // Whatever we do, nothing here will have a representation
     return NO_SYNTAX;
   }
 
-  public propertySignature(node: ts.PropertySignature, context: AstContext): OTree {
-    if (this.currentStruct) {
-      this.currentStruct.addProperty(mangleIdentifier(context.textOf(node.name)));
-    }
-
+  public propertySignature(_node: ts.PropertySignature, _context: PythonVisitorContext): OTree {
+    // Does not represent in Python
     return NO_SYNTAX;
   }
 
@@ -309,19 +402,21 @@ export class PythonVisitor extends DefaultVisitor {
    * Returns a pair of [decls, excploded-var-name].
    */
   // tslint:disable-next-line:max-line-length
-  private convertFunctionCallParameters(params: ts.NodeArray<ts.ParameterDeclaration> | undefined, context: AstContext): [Array<string | OTree>, StructVar | undefined] {
+  private convertFunctionCallParameters(params: ts.NodeArray<ts.ParameterDeclaration> | undefined, context: PythonVisitorContext): [Array<string | OTree>, StructVar | undefined] {
     if (!params || params.length === 0) { return [[], undefined]; }
-    const converted: Array<string | OTree> = context.convertAll(params);
 
-    const lastParam = params[params.length - 1];
-    const lastParamType = lastParam.type ? context.textOf(lastParam.type) : '';
-    const lastParamStruct = this.structs.get(lastParamType);
-    if (lastParamStruct) {
-      converted.pop();
-      converted.push('*', ...lastParamStruct.properties);
-    }
+    const returnExplodedParameter: ReturnFromTree<StructVar> = {};
 
-    return [converted, lastParam &&  { variableName: context.textOf(lastParam.name), typeName: lastParamType }];
+    // Convert the last element differently
+    const converted: Array<string | OTree> = params.length > 0 ? [
+      ...context.convertAll(params.slice(0, params.length - 1)),
+      context.convert(last(params), {
+        tailPositionParameter: true,
+        returnExplodedParameter
+      })
+    ] : [];
+
+    return [ converted, returnExplodedParameter.value ];
   }
 
   /**
@@ -332,9 +427,14 @@ export class PythonVisitor extends DefaultVisitor {
    * - is an object literal, explode it.
    * - is itself an exploded argument in our call signature, explode the fields
    */
-  private convertFunctionCallArguments(args: ts.NodeArray<ts.Expression> | undefined, context: AstContext) {
+  private convertFunctionCallArguments(args: ts.NodeArray<ts.Expression> | undefined, context: PythonVisitorContext) {
     if (!args) { return NO_SYNTAX; }
-    const converted: Array<OTree | string> = context.convertAll(args);
+    const converted: Array<string | OTree> = args.length > 0 ? [
+      ...context.convertAll(args.slice(0, args.length - 1)),
+      context.convert(last(args), {
+        tailPositionArgument: true,
+      })
+    ] : [];
 
     if (args.length > 0) {
       const lastArg = args[args.length - 1];
@@ -348,14 +448,13 @@ export class PythonVisitor extends DefaultVisitor {
         // tslint:disable-next-line:max-line-length
         converted.push(preserveNewlines(lastArg.properties.map(p => context.attachComments(p,  convertProp(p))), lastArg.properties, context, precedingArg));
       }
-      if (this.explodedStructVar && ts.isIdentifier(lastArg) && lastArg.text === this.explodedStructVar.variableName) {
+
+      const explodedParameter = context.currentContext.explodedParameter;
+
+      if (explodedParameter && explodedParameter.type && ts.isIdentifier(lastArg) && lastArg.text === explodedParameter.variableName) {
         // Exploded struct, render fields as keyword arguments
-        const struct = this.structs.get(this.explodedStructVar.typeName);
-        if (struct) {
-          converted.pop();
-          // tslint:disable-next-line:max-line-length
-          converted.push(new OTree([], struct.properties.map(name => new OTree([name, '=', name])), { separator: ', ' }));
-        }
+        converted.pop();
+        converted.push(new OTree([], propertiesOfType(explodedParameter.type).map(name => new OTree([name, '=', name])), { separator: ', ' }));
       }
     }
 
@@ -377,7 +476,7 @@ export class PythonVisitor extends DefaultVisitor {
  * Try to preserve newlines in a converted element tree
  */
 // tslint:disable-next-line:max-line-length
-function preserveNewlines(elements: Array<OTree | string>, nodes: ReadonlyArray<ts.Node>, context: AstContext, leading?: ts.Node, fromStart?: boolean) {
+function preserveNewlines(elements: Array<OTree | string>, nodes: ReadonlyArray<ts.Node>, context: PythonVisitorContext, leading?: ts.Node, fromStart?: boolean) {
   // tslint:disable-next-line:max-line-length
   const leadingNewline = leading && nodes.length > 0 && containsNewline((fromStart ? context.textFromTo : context.textBetween)(leading, nodes[0]));
 
@@ -411,10 +510,6 @@ function flat<A>(xs: A[][]): A[] {
   return Array.prototype.concat.apply([], xs);
 }
 
-class StructInformation {
-  public readonly properties: string[] = [];
-
-  public addProperty(name: string) {
-    this.properties.push(name);
-  }
+function last<A>(xs: ReadonlyArray<A>): A {
+  return xs[xs.length - 1];
 }

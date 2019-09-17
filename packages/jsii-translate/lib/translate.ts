@@ -41,7 +41,7 @@ export class LiteralSource implements Source {
   }
 }
 
-export function translateMarkdown(markdown: Source, visitor: AstVisitor, options: TranslateOptions = {}): TranslateResult {
+export function translateMarkdown(markdown: Source, visitor: AstVisitor<any>, options: TranslateOptions = {}): TranslateResult {
   const compiler = new TypeScriptCompiler();
 
   let index = 0;
@@ -66,16 +66,16 @@ export function translateMarkdown(markdown: Source, visitor: AstVisitor, options
 
 export type TranslateOptions = VisitOptions;
 
-export function translateTypeScript(source: Source, visitor: AstVisitor, options: TranslateOptions = {}): TranslateResult {
+export function translateTypeScript(source: Source, visitor: AstVisitor<any>, options: TranslateOptions = {}): TranslateResult {
   const compiler = new TypeScriptCompiler();
 
   return translateSnippet(source, compiler, visitor, options);
 }
 
-function translateSnippet(source: Source, compiler: TypeScriptCompiler, visitor: AstVisitor, options: TranslateOptions = {}): TranslateResult {
+function translateSnippet(source: Source, compiler: TypeScriptCompiler, visitor: AstVisitor<any>, options: TranslateOptions = {}): TranslateResult {
   return source.withContents((filename, contents) => {
     const result = compiler.compileInMemory(filename, contents);
-    return visitTree(result.rootFile, result.rootFile, visitor, options);
+    return visitTree(result.rootFile, result.rootFile, result.program.getTypeChecker(), visitor, options);
   });
 }
 

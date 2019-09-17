@@ -5,11 +5,12 @@ Knows about jsii conventions to do the translations.
 
 ## Limitations
 
-The translations are currently based off of grammatical parsing only. On the plus side, this
-means that snippets do not have to compile, but on the downside this means we do not have the
-type information available to the exact right thing in all instances.
+In case of non-compiling samples, the translations will be based off of
+grammatical parsing only. On the plus side, this means that snippets do not
+have to compile, but on the downside this means we do not have the type
+information available to the exact right thing in all instances.
 
-Known limitations of the current approach:
+If the samples don't compile or don't have full type information:
 
 - No way to declare typed variables for Java and C#.
 - Can only "see" the fields of structs as far as they are declared in the same

@@ -19,7 +19,7 @@ export interface ImportBinding {
   alias?: string;
 }
 
-export function analyzeImportEquals(node: ts.ImportEqualsDeclaration, context: AstContext): ImportStatement {
+export function analyzeImportEquals(node: ts.ImportEqualsDeclaration, context: AstContext<any>): ImportStatement {
   let moduleName = '???';
   matchAst(node.moduleReference,
     nodeOfType('ref', ts.SyntaxKind.ExternalModuleReference),
@@ -34,7 +34,7 @@ export function analyzeImportEquals(node: ts.ImportEqualsDeclaration, context: A
   };
 }
 
-export function analyzeImportDeclaration(node: ts.ImportDeclaration, context: AstContext): ImportStatement {
+export function analyzeImportDeclaration(node: ts.ImportDeclaration, context: AstContext<any>): ImportStatement {
   const packageName = stringFromLiteral(node.moduleSpecifier);
 
   const starBindings = matchAst(node,

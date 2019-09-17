@@ -3,18 +3,21 @@ import { NO_SYNTAX, OTree, UnknownSyntax } from './o-tree';
 import { extractComments, nodeChildren } from './typescript/ast-utils';
 import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from './typescript/imports';
 
-export interface AstContext {
+export interface AstContext<C> {
   sourceFile: ts.SourceFile;
+  currentContext: C;
 
-  children(node: ts.Node): OTree[];
-  convert(node: ts.Node | undefined): OTree;
-  convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>): OTree[];
+  children(node: ts.Node, context?: C): OTree[];
+  convert(node: ts.Node | undefined, context?: C): OTree;
+  convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, context?: C): OTree[];
   textOf(node: ts.Node): string;
   textAt(pos: number, end: number): string;
   textBetween(node1: ts.Node, node2: ts.Node): string;
   textFromTo(node1: ts.Node, node2: ts.Node): string;
   report(node: ts.Node, message: string, category?: ts.DiagnosticCategory): void;
   attachComments(node: ts.Node, rendered: OTree): OTree;
+  typeOfExpression(node: ts.Expression): ts.Type | undefined;
+  typeOfType(node: ts.TypeNode): ts.Type;
 
   /**
    * Indicate that the returned node is a spot to render comments
@@ -24,165 +27,175 @@ export interface AstContext {
 //  includeComments(node: OTree): OTree;
 }
 
-export interface AstVisitor {
-  commentRange(node: ts.CommentRange, context: AstContext): OTree;
-  importStatement(node: ImportStatement, context: AstContext): OTree;
-  stringLiteral(node: ts.StringLiteral, children: AstContext): OTree;
-  functionDeclaration(node: ts.FunctionDeclaration, children: AstContext): OTree;
-  identifier(node: ts.Identifier, children: AstContext): OTree;
-  block(node: ts.Block, children: AstContext): OTree;
-  parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext): OTree;
-  returnStatement(node: ts.ReturnStatement, context: AstContext): OTree;
-  binaryExpression(node: ts.BinaryExpression, context: AstContext): OTree;
-  ifStatement(node: ts.IfStatement, context: AstContext): OTree;
-  propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext): OTree;
-  callExpression(node: ts.CallExpression, context: AstContext): OTree;
-  expressionStatement(node: ts.ExpressionStatement, context: AstContext): OTree;
-  token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext): OTree;
-  objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext): OTree;
-  newExpression(node: ts.NewExpression, context: AstContext): OTree;
-  propertyAssignment(node: ts.PropertyAssignment, context: AstContext): OTree;
-  variableStatement(node: ts.VariableStatement, context: AstContext): OTree;
-  variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext): OTree;
-  variableDeclaration(node: ts.VariableDeclaration, context: AstContext): OTree;
-  jsDoc(node: ts.JSDoc, context: AstContext): OTree;
-  arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext): OTree;
-  shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree;
-  forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree;
-  classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree;
-  constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree;
-  propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext): OTree;
-  methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree;
-  interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree;
-  propertySignature(node: ts.PropertySignature, context: AstContext): OTree;
+export interface AstVisitor<C> {
+  readonly defaultContext: C;
+
+  mergeContext(old: C, update: C): C;
+
+  commentRange(node: ts.CommentRange, context: AstContext<C>): OTree;
+  importStatement(node: ImportStatement, context: AstContext<C>): OTree;
+  stringLiteral(node: ts.StringLiteral, children: AstContext<C>): OTree;
+  functionDeclaration(node: ts.FunctionDeclaration, children: AstContext<C>): OTree;
+  identifier(node: ts.Identifier, children: AstContext<C>): OTree;
+  block(node: ts.Block, children: AstContext<C>): OTree;
+  parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext<C>): OTree;
+  returnStatement(node: ts.ReturnStatement, context: AstContext<C>): OTree;
+  binaryExpression(node: ts.BinaryExpression, context: AstContext<C>): OTree;
+  ifStatement(node: ts.IfStatement, context: AstContext<C>): OTree;
+  propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext<C>): OTree;
+  callExpression(node: ts.CallExpression, context: AstContext<C>): OTree;
+  expressionStatement(node: ts.ExpressionStatement, context: AstContext<C>): OTree;
+  token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext<C>): OTree;
+  objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext<C>): OTree;
+  newExpression(node: ts.NewExpression, context: AstContext<C>): OTree;
+  propertyAssignment(node: ts.PropertyAssignment, context: AstContext<C>): OTree;
+  variableStatement(node: ts.VariableStatement, context: AstContext<C>): OTree;
+  variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext<C>): OTree;
+  variableDeclaration(node: ts.VariableDeclaration, context: AstContext<C>): OTree;
+  jsDoc(node: ts.JSDoc, context: AstContext<C>): OTree;
+  arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext<C>): OTree;
+  shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext<C>): OTree;
+  forOfStatement(node: ts.ForOfStatement, context: AstContext<C>): OTree;
+  classDeclaration(node: ts.ClassDeclaration, context: AstContext<C>): OTree;
+  constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext<C>): OTree;
+  propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext<C>): OTree;
+  methodDeclaration(node: ts.MethodDeclaration, context: AstContext<C>): OTree;
+  interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext<C>): OTree;
+  propertySignature(node: ts.PropertySignature, context: AstContext<C>): OTree;
 }
 
-export class VisualizeAstVisitor implements AstVisitor {
+export class VisualizeAstVisitor implements AstVisitor<void> {
+  public readonly defaultContext: void = undefined;
+
   constructor(private readonly includeHandlerNames?: boolean) {
   }
 
-  public commentRange(node: ts.CommentRange, context: AstContext): OTree {
+  public mergeContext(_old: void, _update: void): void {
+    return undefined;
+  }
+
+  public commentRange(node: ts.CommentRange, context: AstContext<void>): OTree {
     return new OTree(['(Comment', context.textAt(node.pos, node.end)], [], { suffix: ')' });
   }
 
-  public jsDoc(_node: ts.JSDoc, _context: AstContext): OTree {
+  public jsDoc(_node: ts.JSDoc, _context: AstContext<void>): OTree {
     // Already handled by other doc handlers
     return new OTree([]);
   }
 
-  public importStatement(node: ImportStatement, context: AstContext): OTree {
+  public importStatement(node: ImportStatement, context: AstContext<void>): OTree {
     return this.defaultNode('importStatement', node.node, context);
   }
 
-  public functionDeclaration(node: ts.FunctionDeclaration, children: AstContext): OTree {
+  public functionDeclaration(node: ts.FunctionDeclaration, children: AstContext<void>): OTree {
     return this.defaultNode('functionDeclaration', node, children);
   }
 
-  public stringLiteral(node: ts.StringLiteral, children: AstContext): OTree {
+  public stringLiteral(node: ts.StringLiteral, children: AstContext<void>): OTree {
     return this.defaultNode('stringLiteral', node, children);
   }
 
-  public identifier(node: ts.Identifier, children: AstContext): OTree {
+  public identifier(node: ts.Identifier, children: AstContext<void>): OTree {
     return this.defaultNode('identifier', node, children);
   }
 
-  public block(node: ts.Block, children: AstContext): OTree {
+  public block(node: ts.Block, children: AstContext<void>): OTree {
     return this.defaultNode('block', node, children);
   }
 
-  public parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext): OTree {
+  public parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext<void>): OTree {
     return this.defaultNode('parameterDeclaration', node, children);
   }
 
-  public returnStatement(node: ts.ReturnStatement, children: AstContext): OTree {
+  public returnStatement(node: ts.ReturnStatement, children: AstContext<void>): OTree {
     return this.defaultNode('returnStatement', node, children);
   }
 
-  public binaryExpression(node: ts.BinaryExpression, children: AstContext): OTree {
+  public binaryExpression(node: ts.BinaryExpression, children: AstContext<void>): OTree {
     return this.defaultNode('binaryExpression', node, children);
   }
 
-  public ifStatement(node: ts.IfStatement, context: AstContext): OTree {
+  public ifStatement(node: ts.IfStatement, context: AstContext<void>): OTree {
     return this.defaultNode('ifStatement', node, context);
   }
 
-  public propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext): OTree {
+  public propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext<void>): OTree {
     return this.defaultNode('propertyAccessExpression', node, context);
   }
 
-  public callExpression(node: ts.CallExpression, context: AstContext): OTree {
+  public callExpression(node: ts.CallExpression, context: AstContext<void>): OTree {
     return this.defaultNode('callExpression', node, context);
   }
 
-  public expressionStatement(node: ts.ExpressionStatement, context: AstContext): OTree {
+  public expressionStatement(node: ts.ExpressionStatement, context: AstContext<void>): OTree {
     return this.defaultNode('expressionStatement', node, context);
   }
 
-  public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext): OTree {
+  public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext<void>): OTree {
     return this.defaultNode('token', node, context);
   }
 
-  public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext): OTree {
+  public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext<void>): OTree {
     return this.defaultNode('objectLiteralExpression', node, context);
   }
 
-  public newExpression(node: ts.NewExpression, context: AstContext): OTree {
+  public newExpression(node: ts.NewExpression, context: AstContext<void>): OTree {
     return this.defaultNode('newExpression', node, context);
   }
 
-  public propertyAssignment(node: ts.PropertyAssignment, context: AstContext): OTree {
+  public propertyAssignment(node: ts.PropertyAssignment, context: AstContext<void>): OTree {
     return this.defaultNode('propertyAssignment', node, context);
   }
 
-  public variableStatement(node: ts.VariableStatement, context: AstContext): OTree {
+  public variableStatement(node: ts.VariableStatement, context: AstContext<void>): OTree {
     return this.defaultNode('variableStatement', node, context);
   }
 
-  public variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext): OTree {
+  public variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext<void>): OTree {
     return this.defaultNode('variableDeclarationList', node, context);
   }
 
-  public variableDeclaration(node: ts.VariableDeclaration, context: AstContext): OTree {
+  public variableDeclaration(node: ts.VariableDeclaration, context: AstContext<void>): OTree {
     return this.defaultNode('variableDeclaration', node, context);
   }
 
-  public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext): OTree {
+  public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext<void>): OTree {
     return this.defaultNode('arrayLiteralExpression', node, context);
   }
 
-  public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree {
+  public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext<void>): OTree {
     return this.defaultNode('shorthandPropertyAssignment', node, context);
   }
 
-  public forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree {
+  public forOfStatement(node: ts.ForOfStatement, context: AstContext<void>): OTree {
     return this.defaultNode('forOfStatement', node, context);
   }
 
-  public classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree {
+  public classDeclaration(node: ts.ClassDeclaration, context: AstContext<void>): OTree {
     return this.defaultNode('classDeclaration', node, context);
   }
 
-  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree {
+  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext<void>): OTree {
     return this.defaultNode('constructorDeclaration', node, context);
   }
 
-  public propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext): OTree {
+  public propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext<void>): OTree {
     return this.defaultNode('propertyDeclaration', node, context);
   }
 
-  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree {
+  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext<void>): OTree {
     return this.defaultNode('methodDeclaration', node, context);
   }
 
-  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree {
+  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext<void>): OTree {
     return this.defaultNode('interfaceDeclaration', node, context);
   }
 
-  public propertySignature(node: ts.PropertySignature, context: AstContext): OTree {
+  public propertySignature(node: ts.PropertySignature, context: AstContext<void>): OTree {
     return this.defaultNode('propertySignature', node, context);
   }
 
-  private defaultNode(handlerName: string, node: ts.Node, context: AstContext): OTree {
+  private defaultNode(handlerName: string, node: ts.Node, context: AstContext<void>): OTree {
     return nimpl(node, context, {
       additionalInfo: this.includeHandlerNames ? handlerName : ''
     });
@@ -192,36 +205,40 @@ export class VisualizeAstVisitor implements AstVisitor {
 /**
  * A basic visitor that applies for most curly-braces-based languages
  */
-export class DefaultVisitor implements AstVisitor {
-  public commentRange(node: ts.CommentRange, context: AstContext): OTree {
+export abstract class DefaultVisitor<C> implements AstVisitor<C> {
+  public abstract readonly defaultContext: C;
+
+  public abstract mergeContext(old: C, update: C): C;
+
+  public commentRange(node: ts.CommentRange, context: AstContext<C>): OTree {
     return new OTree([
       context.textAt(node.pos, node.end),
       node.hasTrailingNewLine ? '\n' : ''
     ]);
   }
 
-  public jsDoc(_node: ts.JSDoc, _context: AstContext): OTree {
+  public jsDoc(_node: ts.JSDoc, _context: AstContext<C>): OTree {
     // Already handled by other doc handlers
     return new OTree([]);
   }
 
-  public importStatement(node: ImportStatement, context: AstContext): OTree {
+  public importStatement(node: ImportStatement, context: AstContext<C>): OTree {
     return nimpl(node.node, context);
   }
 
-  public functionDeclaration(node: ts.FunctionDeclaration, children: AstContext): OTree {
+  public functionDeclaration(node: ts.FunctionDeclaration, children: AstContext<C>): OTree {
     return nimpl(node, children);
   }
 
-  public stringLiteral(node: ts.StringLiteral, _children: AstContext): OTree {
+  public stringLiteral(node: ts.StringLiteral, _children: AstContext<C>): OTree {
     return new OTree([JSON.stringify(node.text)]);
   }
 
-  public identifier(node: ts.Identifier, _children: AstContext): OTree {
+  public identifier(node: ts.Identifier, _children: AstContext<C>): OTree {
     return new OTree([node.text]);
   }
 
-  public block(node: ts.Block, children: AstContext): OTree {
+  public block(node: ts.Block, children: AstContext<C>): OTree {
     return new OTree(['{'], children.children(node), {
       newline: true,
       indent: 4,
@@ -229,15 +246,15 @@ export class DefaultVisitor implements AstVisitor {
     });
   }
 
-  public parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext): OTree {
+  public parameterDeclaration(node: ts.ParameterDeclaration, children: AstContext<C>): OTree {
     return nimpl(node, children);
   }
 
-  public returnStatement(node: ts.ReturnStatement, children: AstContext): OTree {
+  public returnStatement(node: ts.ReturnStatement, children: AstContext<C>): OTree {
     return new OTree(['return ', children.convert(node.expression)]);
   }
 
-  public binaryExpression(node: ts.BinaryExpression, context: AstContext): OTree {
+  public binaryExpression(node: ts.BinaryExpression, context: AstContext<C>): OTree {
     return new OTree([
       context.convert(node.left),
       ' ',
@@ -247,15 +264,15 @@ export class DefaultVisitor implements AstVisitor {
     ]);
   }
 
-  public ifStatement(node: ts.IfStatement, context: AstContext): OTree {
+  public ifStatement(node: ts.IfStatement, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext): OTree {
+  public propertyAccessExpression(node: ts.PropertyAccessExpression, context: AstContext<C>): OTree {
     return new OTree([context.convert(node.expression), '.', context.convert(node.name)]);
   }
 
-  public callExpression(node: ts.CallExpression, context: AstContext): OTree {
+  public callExpression(node: ts.CallExpression, context: AstContext<C>): OTree {
     return new OTree([
       context.convert(node.expression),
       '(',
@@ -263,81 +280,81 @@ export class DefaultVisitor implements AstVisitor {
       ')']);
   }
 
-  public expressionStatement(node: ts.ExpressionStatement, context: AstContext): OTree {
+  public expressionStatement(node: ts.ExpressionStatement, context: AstContext<C>): OTree {
     return context.convert(node.expression);
   }
 
-  public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext): OTree {
+  public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext<C>): OTree {
     return new OTree([context.textOf(node)]);
   }
 
-  public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext): OTree {
+  public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public newExpression(node: ts.NewExpression, context: AstContext): OTree {
+  public newExpression(node: ts.NewExpression, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public propertyAssignment(node: ts.PropertyAssignment, context: AstContext): OTree {
+  public propertyAssignment(node: ts.PropertyAssignment, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public variableStatement(node: ts.VariableStatement, context: AstContext): OTree {
+  public variableStatement(node: ts.VariableStatement, context: AstContext<C>): OTree {
     return context.convert(node.declarationList);
   }
 
-  public variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext): OTree {
+  public variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext<C>): OTree {
     return new OTree([], context.convertAll(node.declarations), {
       separator: '\n'
     });
   }
 
-  public variableDeclaration(node: ts.VariableDeclaration, context: AstContext): OTree {
+  public variableDeclaration(node: ts.VariableDeclaration, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext): OTree {
+  public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext<C>): OTree {
     return new OTree(['['], context.convertAll(node.elements), {
       separator: ',\n',
       suffix: ']',
     });
   }
 
-  public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext): OTree {
+  public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public forOfStatement(node: ts.ForOfStatement, context: AstContext): OTree {
+  public forOfStatement(node: ts.ForOfStatement, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public classDeclaration(node: ts.ClassDeclaration, context: AstContext): OTree {
+  public classDeclaration(node: ts.ClassDeclaration, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext): OTree {
+  public constructorDeclaration(node: ts.ConstructorDeclaration, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext): OTree {
+  public propertyDeclaration(node: ts.PropertyDeclaration, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext): OTree {
+  public methodDeclaration(node: ts.MethodDeclaration, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext): OTree {
+  public interfaceDeclaration(node: ts.InterfaceDeclaration, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 
-  public propertySignature(node: ts.PropertySignature, context: AstContext): OTree {
+  public propertySignature(node: ts.PropertySignature, context: AstContext<C>): OTree {
     return nimpl(node, context);
   }
 }
 
-export function nimpl(node: ts.Node, context: AstContext, options: { additionalInfo?: string} = {}) {
+export function nimpl<C>(node: ts.Node, context: AstContext<C>, options: { additionalInfo?: string} = {}) {
   const children = context.children(node);
 
   let syntaxKind = ts.SyntaxKind[node.kind];
@@ -373,26 +390,51 @@ export interface VisitOptions {
   bestEffort?: boolean;
 }
 
-export function visitTree(file: ts.SourceFile, root: ts.Node, visitor: AstVisitor, options: VisitOptions = {}): TranslateResult {
+export function visitTree<C>(
+      file: ts.SourceFile, root: ts.Node, typeChecker: ts.TypeChecker,
+      visitor: AstVisitor<C>, options: VisitOptions = {}): TranslateResult {
   const diagnostics = new Array<ts.Diagnostic>();
 
-  const context: AstContext = {
+  const contextStack: C[] = [ visitor.defaultContext ];
+
+  const context: AstContext<C> = {
     sourceFile: file,
-    children(node: ts.Node) {
-      return nodeChildren(node).map(recurse);
+
+    get currentContext(): C {
+      return contextStack[contextStack.length - 1];
     },
-    convert(node: ts.Node | undefined): OTree {
+
+    children(node: ts.Node, pushContext?: C) {
+      if (pushContext !== undefined) { contextStack.push(visitor.mergeContext(context.currentContext, pushContext)); }
+      const ret = nodeChildren(node).map(recurse);
+      if (pushContext !== undefined) { contextStack.pop(); }
+      return ret;
+    },
+    convert(node: ts.Node | undefined, pushContext?: C): OTree {
       if (node === undefined) { return NO_SYNTAX; }
-      return recurse(node);
+
+      if (pushContext !== undefined) { contextStack.push(visitor.mergeContext(context.currentContext, pushContext)); }
+      const ret = recurse(node);
+      if (pushContext !== undefined) { contextStack.pop(); }
+      return ret;
     },
-    convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>): OTree[] {
-      return nodes.map(recurse);
+    convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, pushContext?: C): OTree[] {
+      if (pushContext !== undefined) { contextStack.push(visitor.mergeContext(context.currentContext, pushContext)); }
+      const ret = nodes.map(recurse);
+      if (pushContext !== undefined) { contextStack.pop(); }
+      return ret;
     },
     textOf(node: ts.Node): string {
       return node.getText(file);
     },
     textAt(pos: number, end: number): string {
       return file.text.substring(pos, end);
+    },
+    typeOfExpression(node: ts.Expression) {
+      return typeChecker.getContextualType(node);
+    },
+    typeOfType(node: ts.TypeNode): ts.Type {
+        return typeChecker.getTypeFromTypeNode(node);
     },
     report(node: ts.Node, messageText: string, category: ts.DiagnosticCategory = ts.DiagnosticCategory.Error) {
       diagnostics.push({

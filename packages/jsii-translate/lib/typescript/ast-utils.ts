@@ -135,7 +135,7 @@ export function matchAst<A>(node: ts.Node, matcher: AstMatcher<A>, cb?: (binding
 }
 
 // tslint:disable-next-line:max-line-length
-export function preserveSeparatingNewlines(rendered: Array<OTree | string>, sourceNodes: Iterable<ts.Node>, context: AstContext): Array<OTree | string> {
+export function preserveSeparatingNewlines(rendered: Array<OTree | string>, sourceNodes: Iterable<ts.Node>, context: AstContext<any>): Array<OTree | string> {
   const ret: Array<OTree | string> = [];
 
   let lastNode;
