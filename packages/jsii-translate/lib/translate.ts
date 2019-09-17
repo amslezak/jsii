@@ -41,7 +41,14 @@ export class LiteralSource implements Source {
   }
 }
 
-export function translateMarkdown(markdown: Source, visitor: AstVisitor<any>, options: TranslateOptions = {}): TranslateResult {
+export interface TranslateMarkdownOptions extends VisitOptions {
+  /**
+   * What language to put in the returned markdown blocks
+   */
+  languageIdentifier?: string;
+}
+
+export function translateMarkdown(markdown: Source, visitor: AstVisitor<any>, options: TranslateMarkdownOptions = {}): TranslateResult {
   const compiler = new TypeScriptCompiler();
 
   let index = 0;
@@ -57,7 +64,7 @@ export function translateMarkdown(markdown: Source, visitor: AstVisitor<any>, op
 
       diagnostics.push(...snippetTranslation.diagnostics);
 
-      return { language: '', source: renderTree(snippetTranslation.tree) + '\n' };
+      return { language: options.languageIdentifier || '', source: renderTree(snippetTranslation.tree) + '\n' };
     }));
   });
 

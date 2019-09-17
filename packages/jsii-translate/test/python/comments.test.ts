@@ -14,7 +14,8 @@ test('interleave single line comments with function call', () => {
       # A comment before arg2
       arg2="string",
       # A comment before arg3
-      arg3="boo")
+      arg3="boo"
+      )
   `);
 });
 
@@ -32,7 +33,8 @@ test('interleave multiline comments with function call', () => {
       # A comment before arg2
       arg2="string",
       # A comment before arg3
-      arg3="boo")
+      arg3="boo"
+      )
   `);
 });
 

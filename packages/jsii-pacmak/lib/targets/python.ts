@@ -1903,7 +1903,9 @@ function isStruct(typeSystem: reflect.TypeSystem, ref: spec.TypeReference): bool
 
 function convertSnippetsInMarkdown(markdown: string, filename: string): string {
     const source = new translate.LiteralSource(markdown, filename);
-    const result =  translate.translateMarkdown(source, new translate.PythonVisitor());
+    const result =  translate.translateMarkdown(source, new translate.PythonVisitor(), {
+        languageIdentifier: 'python'
+    });
     // FIXME: This should translate into an exit code somehow
     translate.printDiagnostics(result.diagnostics, process.stderr);
     return translate.renderTree(result.tree);

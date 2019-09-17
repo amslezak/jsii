@@ -1,6 +1,6 @@
 import ts = require('typescript');
 import { NO_SYNTAX, OTree, UnknownSyntax } from './o-tree';
-import { extractComments, nodeChildren } from './typescript/ast-utils';
+import { convertChildrenWithNewlines, extractComments, nodeChildren } from './typescript/ast-utils';
 import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from './typescript/imports';
 
 export interface AstContext<C> {
@@ -493,8 +493,8 @@ export function visitTree<C>(
   function transformNode(tree: ts.Node): OTree {
     // Weird nodes
     if (ts.isSourceFile(tree))  {
-      return new OTree([], context.convertAll(tree.statements), {
-        separator: '\n'
+      return convertChildrenWithNewlines(tree, tree.statements, context, {
+        separator: ''
       });
     }
 

@@ -57,7 +57,24 @@ test('translate object literals with newlines', async () => {
   `, `
   foo(25,
       foo=3,
-      banana="hello")
+      banana="hello"
+      )
+  `);
+});
+
+test('translate object literals with multiple newlines', async () => {
+  expectPython(`
+  foo(25, {
+    foo: 3,
+
+    banana: "hello"
+  });
+  `, `
+  foo(25,
+      foo=3,
+
+      banana="hello"
+      )
   `);
 });
 
@@ -79,7 +96,8 @@ test('translate object literals second level with newlines', async () => {
   `, `
   foo(25, foo=3, deeper={
           "a": 1,
-          "b": 2})
+          "b": 2
+      })
   `);
 });
 
@@ -110,7 +128,8 @@ test('will type deep structs directly if type info is available', () => {
 
   foo(25, foo=3, deeper=DeeperStruct(
           a=1,
-          b=2))
+          b=2
+          ))
   `);
 });
 
@@ -137,5 +156,27 @@ test('default struct fields get =None appended', () => {
   `, `
   def foo(*, x=None, y=None):
       print(x, y)
+  `);
+});
+
+test.only('list of structs', () => {
+  expectPython(`
+  foo({
+    list: [{
+      a: 1,
+      b: 2
+    }, {
+      a: 3,
+      b: 4,
+    }]
+  });
+  `, `
+  foo(list=[{
+              "a": 1,
+              "b": 2
+          }, {
+              "a": 3,
+              "b": 4
+          }])
   `);
 });

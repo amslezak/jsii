@@ -1,7 +1,8 @@
 import ts = require('typescript');
 import { isStructType, parameterAcceptsUndefined, propertiesOfStruct, StructProperty, structPropertyAcceptsUndefined } from '../jsii/jsii-utils';
 import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
-import { containsNewline, matchAst, nodeOfType, preserveSeparatingNewlines, stripCommentMarkers } from '../typescript/ast-utils';
+import { containsNewline, convertChildrenWithNewlines, matchAst, nodeOfType,
+  preserveSeparatingNewlines, stripCommentMarkers } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
 import { startsWithUppercase } from "../util";
 import { AstContext, DefaultVisitor, nimpl } from "../visitor";
@@ -159,15 +160,13 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
   }
 
   public block(node: ts.Block, context: PythonVisitorContext): OTree {
-    const children = node.statements.length > 0
-        ? context.convertAll(node.statements)
-        : [new OTree(['pass'])];
+    if (node.statements.length === 0) {
+      return new OTree([], ['pass'], { newline: true, indent: 4, attachComment: true });
+    }
 
-    return new OTree([], children, {
-      newline: true,
+    return convertChildrenWithNewlines(node, node.statements, context, {
+      separator: '',
       indent: 4,
-      separator: '\n',
-      attachComment: true
     });
   }
 
@@ -244,13 +243,10 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
   public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: PythonVisitorContext): OTree {
     if (context.currentContext.tailPositionArgument) {
       // Explode into parent call site
-      return new OTree([], [
-        preserveNewlines(context.convertAll(node.properties, { renderObjectLiteralAsKeywords: true }), node.properties, context, node, true)],
-        {
-          separator: ', ',
-          indent: 4,
-          attachComment: true,
-        });
+      return convertChildrenWithNewlines(node, node.properties, context, {
+        pushContext: { renderObjectLiteralAsKeywords: true },
+        indent: 4,
+     });
     }
 
     let prefix = '{';
@@ -265,15 +261,20 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       isStruct = true;
     }
 
-    return new OTree([prefix],
-      [preserveNewlines(context.convertAll(node.properties, { renderObjectLiteralAsKeywords: isStruct }), node.properties, context, node, true)],
-      {
-        separator: ', ',
-        indent: 4,
-        suffix,
-        attachComment: true,
-      },
-    );
+    return convertChildrenWithNewlines(node, node.properties, context, {
+      pushContext: { renderObjectLiteralAsKeywords: isStruct },
+      prefix,
+      suffix,
+      indent: 4,
+    });
+  }
+
+  public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: PythonVisitorContext): OTree {
+    return convertChildrenWithNewlines(node, node.elements, context, {
+      prefix: '[',
+      suffix: ']',
+      indent: 4,
+    });
   }
 
   public propertyAssignment(node: ts.PropertyAssignment, context: PythonVisitorContext): OTree {
@@ -485,11 +486,13 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
  */
 // tslint:disable-next-line:max-line-length
 function preserveNewlines(elements: Array<OTree | string>, nodes: ReadonlyArray<ts.Node>, context: PythonVisitorContext, leading?: ts.Node, fromStart?: boolean) {
-  // tslint:disable-next-line:max-line-length
   const leadingNewline = leading && nodes.length > 0 && containsNewline((fromStart ? context.textFromTo : context.textBetween)(leading, nodes[0]));
 
-  // tslint:disable-next-line:max-line-length
-  return new OTree([leadingNewline ? '\n' : ''], preserveSeparatingNewlines(elements, nodes, context), { separator: ', ' });
+  // If we do a leading newline, also do a trailing newline
+  return new OTree([leadingNewline ? '\n' : ''], preserveSeparatingNewlines(elements, nodes, context), {
+    separator: ', ',
+    suffix: leadingNewline ? '\n' : '',
+  });
 }
 
 function mangleIdentifier(originalIdentifier: string) {

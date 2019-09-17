@@ -170,6 +170,18 @@ export function containsNewline(x: string) {
   return x.indexOf('\n') !== -1;
 }
 
+export function countNewlines(str: string) {
+  let ret = 0;
+  for (const c of str) {
+    if (c === '\n') { ret++; }
+  }
+  return ret;
+}
+
+export function repeatNewlines(str: string) {
+  return '\n'.repeat(countNewlines(str));
+}
+
 const WHITESPACE = [' ', '\t', '\r', '\n'];
 
 /**
@@ -218,4 +230,50 @@ export function extractComments(text: string, start: number): ts.CommentRange[] 
     if (f === -1) { return text.length; }
     return f;
   }
+}
+
+interface ConvertWithNewlineOptions<C> {
+  pushContext?: C;
+  prefix?: string;
+  suffix?: string;
+  indent?: number;
+
+  /**
+   * Separator
+   *
+   * @default ', '
+   */
+  separator?: string;
+}
+
+/**
+ * Convert a set children of a parent node, trying to preserve newlines from the original source
+ */
+export function convertChildrenWithNewlines<C>(
+    parentNode: ts.Node,
+    childNodes: ReadonlyArray<ts.Node>,
+    context: AstContext<C>,
+    options: ConvertWithNewlineOptions<C> = {}) {
+
+  const ret = new Array<OTree>();
+
+  const initialNewlines = parentNode && childNodes.length > 0 ? repeatNewlines(context.textFromTo(parentNode, childNodes[0])) : '';
+
+  let separators = initialNewlines;
+  let lastNode;
+  for (const node of childNodes) {
+    const converted = context.convert(node, options.pushContext);
+
+    if (lastNode) { separators = repeatNewlines(context.textBetween(lastNode, node)); }
+    lastNode = node;
+    ret.push(separators.length > 0 ? new OTree([separators, converted]) : converted);
+  }
+
+  return new OTree([options.prefix || ''], ret, {
+    indent: options.indent,
+    // As a general rule, if you can insert newlines you can attach comments
+    attachComment: true,
+    separator: options.separator !== undefined ? options.separator : ', ',
+    suffix: (initialNewlines.length > 0 ? '\n' : '') + (options.suffix || '')
+  });
 }
