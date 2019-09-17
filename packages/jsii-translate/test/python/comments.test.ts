@@ -39,11 +39,26 @@ test('interleave multiline comments with function call', () => {
 });
 
 test('no duplication of comments', () => {
+  // Harder than it looks!
   expectPython(`
   // Here's a comment
   object.member.functionCall(new Class(), "argument");
   `, `
   # Here's a comment
   object.member.function_call(Class(), "argument")
+  `);
+});
+
+test('empty lines in comments', () => {
+  expectPython(`
+  // Here's a comment
+  //
+  // Second line
+  someCall();
+  `, `
+  # Here's a comment
+  #
+  # Second line
+  some_call()
   `);
 });

@@ -9,7 +9,7 @@ export function stripCommentMarkers(comment: string, multiline: boolean) {
       .replace(/\*\/\s*$/gm, '')
       .replace(/^ \*( )?/gm, '');
   } else {
-    return comment.replace(/^\/\/ /gm, '');
+    return comment.replace(/^\/\/\s?/gm, '');
   }
 }
 
