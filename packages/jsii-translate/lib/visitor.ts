@@ -5,6 +5,7 @@ import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from '
 
 export interface AstContext<C> {
   sourceFile: ts.SourceFile;
+  typeChecker: ts.TypeChecker;
   currentContext: C;
 
   children(node: ts.Node, context?: C): OTree[];
@@ -398,6 +399,7 @@ export function visitTree<C>(
   const contextStack: C[] = [ visitor.defaultContext ];
 
   const context: AstContext<C> = {
+    typeChecker,
     sourceFile: file,
 
     get currentContext(): C {
@@ -434,7 +436,7 @@ export function visitTree<C>(
       return typeChecker.getContextualType(node);
     },
     typeOfType(node: ts.TypeNode): ts.Type {
-        return typeChecker.getTypeFromTypeNode(node);
+      return typeChecker.getTypeFromTypeNode(node);
     },
     report(node: ts.Node, messageText: string, category: ts.DiagnosticCategory = ts.DiagnosticCategory.Error) {
       diagnostics.push({

@@ -1,5 +1,5 @@
 import ts = require('typescript');
-import { isStructType, propertiesOfType } from '../jsii/jsii-utils';
+import { isStructType, parameterAcceptsUndefined, propertiesOfStruct, StructProperty, structPropertyAcceptsUndefined } from '../jsii/jsii-utils';
 import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
 import { containsNewline, matchAst, nodeOfType, preserveSeparatingNewlines, stripCommentMarkers } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
@@ -203,24 +203,30 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
   }
 
   public parameterDeclaration(node: ts.ParameterDeclaration, context: PythonVisitorContext): OTree {
-    if (context.currentContext.tailPositionParameter && node.type) {
-      const type = context.typeOfType(node.type);
-      if (isStructType(type)) {
-        // Return the parameter that we exploded so that we can use this information
-        // while translating the body.
-        if (context.currentContext.returnExplodedParameter) {
-          context.currentContext.returnExplodedParameter.value = {
-            variableName: context.textOf(node.name),
-            type,
-          };
-        }
+    const type = node.type && context.typeOfType(node.type);
 
-        // Explode to fields
-        return new OTree([], ['*', ...propertiesOfType(type)], { separator: ', ' });
+    if (context.currentContext.tailPositionParameter && type && isStructType(type)) {
+      // Return the parameter that we exploded so that we can use this information
+      // while translating the body.
+      if (context.currentContext.returnExplodedParameter) {
+        context.currentContext.returnExplodedParameter.value = {
+          variableName: context.textOf(node.name),
+          type,
+        };
       }
+
+      // Explode to fields
+      return new OTree([], ['*', ...propertiesOfStruct(type, context).map(renderStructProperty)], { separator: ', ' });
     }
 
-    return new OTree([context.convert(node.name)]);
+    const suffix = parameterAcceptsUndefined(node, type) ? '=None' : '';
+
+    return new OTree([context.convert(node.name), suffix]);
+
+    function renderStructProperty(prop: StructProperty): string {
+      const sfx = structPropertyAcceptsUndefined(prop) ? '=None' : '';
+      return prop.name + sfx;
+    }
   }
 
   public ifStatement(node: ts.IfStatement, context: PythonVisitorContext): OTree {
@@ -454,7 +460,9 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       if (explodedParameter && explodedParameter.type && ts.isIdentifier(lastArg) && lastArg.text === explodedParameter.variableName) {
         // Exploded struct, render fields as keyword arguments
         converted.pop();
-        converted.push(new OTree([], propertiesOfType(explodedParameter.type).map(name => new OTree([name, '=', name])), { separator: ', ' }));
+        converted.push(new OTree([],
+          propertiesOfStruct(explodedParameter.type, context).map(prop => new OTree([prop.name, '=', prop.name])),
+          { separator: ', ' }));
       }
     }
 

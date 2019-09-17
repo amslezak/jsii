@@ -113,3 +113,29 @@ test('will type deep structs directly if type info is available', () => {
           b=2))
   `);
 });
+
+test('default arguments get =None appended', () => {
+  expectPython(`
+  function foo(x: string | undefined, y: string = 'hello', z?: string) {
+    console.log(x, y, z);
+  }
+  `, `
+  def foo(x=None, y=None, z=None):
+      print(x, y, z)
+  `);
+});
+
+test('default struct fields get =None appended', () => {
+  expectPython(`
+  interface Struct {
+    x: string | undefined;
+    y?: string;
+  }
+  function foo(s: Struct) {
+    console.log(s.x, s.y);
+  }
+  `, `
+  def foo(*, x=None, y=None):
+      print(x, y)
+  `);
+});
