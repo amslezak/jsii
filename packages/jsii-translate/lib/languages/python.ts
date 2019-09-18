@@ -161,7 +161,6 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       }),
       '): ',
     ], [context.convert(node.body, { explodedParameter, currentMethodName: methodName })], {
-      suffix: '\n',
       attachComment: true
     });
 
@@ -170,7 +169,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
 
   public block(node: ts.Block, context: PythonVisitorContext): OTree {
     if (node.statements.length === 0) {
-      return new OTree([], ['pass'], { newline: true, indent: 4, attachComment: true });
+      return new OTree([], ['pass'], { newline: true, indent: 4, attachComment: true, suffix: '\n' });
     }
 
     return convertChildrenWithNewlines(node, node.statements, context, {
@@ -373,10 +372,10 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
 
     const members = context.convertAll(node.members, { inClass: true });
     if (members.length === 0) {
-      members.push(new OTree(['pass']));
+      members.push(new OTree(['pass'], [], { suffix: '\n' }));
     }
 
-    return new OTree([
+    const ret = new OTree([
       'class ',
       node.name ? context.textOf(node.name) : '???',
       hasHeritage ? '(' : '',
@@ -387,9 +386,10 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       separator: '\n',
       newline: true,
       indent: 4,
-      suffix: '\n',
       attachComment: true
     });
+
+    return ret;
   }
 
   public propertyDeclaration(_node: ts.PropertyDeclaration, _context: PythonVisitorContext): OTree {

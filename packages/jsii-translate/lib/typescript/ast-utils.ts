@@ -4,12 +4,16 @@ import { AstContext } from '../visitor';
 
 export function stripCommentMarkers(comment: string, multiline: boolean) {
   if (multiline) {
-    return comment
-      .replace(/^\/(\*)+( )?/gm, '')
-      .replace(/\*\/\s*$/gm, '')
-      .replace(/^ \*( )?/gm, '');
+    // The text *must* start with '/*' and end with '*/'.
+    // Strip leading '*' from every remaining line (first line because of '**',
+    // other lines because of continuations.
+    return comment.substring(2, comment.length - 2)
+      .replace(/^[ \t]+/g, '')  // Strip all leading whitepace
+      .replace(/[ \t]+$/g, '')  // Strip all trailing whitepace
+      .replace(/^[ \t]*\*[ \t]?/gm, ''); // Strip "* " from start of line
   } else {
-    return comment.replace(/^\/\/\s?/gm, '');
+    // The text *must* start with '//'
+    return comment.replace(/^\/\/[ \t]?/gm, '');
   }
 }
 
@@ -174,7 +178,7 @@ export function countNakedNewlines(str: string) {
 }
 
 export function repeatNewlines(str: string) {
-  return '\n'.repeat(countNakedNewlines(str));
+  return '\n'.repeat(Math.min(2, countNakedNewlines(str)));
 }
 
 const WHITESPACE = [' ', '\t', '\r', '\n'];
@@ -250,7 +254,7 @@ function scanText(text: string, start: number, end?: number): TextRange[] {
       type: 'blockcomment',
       hasTrailingNewLine: ['\n', '\r'].includes(text[endOfComment + 2]),
       pos,
-      end: endOfComment
+      end: endOfComment + 2
     });
     pos = endOfComment + 2;
     start = pos;

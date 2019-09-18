@@ -16,6 +16,60 @@ test('class declaration with fields and constructor', async () => {
   `);
 });
 
+test('whitespace between multiple members', () => {
+  expectPython(`
+  class MyClass {
+    constructor(y: string) {
+      this.x = y;
+    }
+
+    public hello() {
+      console.log(this.x);
+    }
+
+    public bye() {
+      console.log('bye');
+    }
+  }
+  `, `
+  class MyClass:
+      def __init__(self, y):
+          self.x = y
+
+      def hello(self):
+          print(self.x)
+
+      def bye(self):
+          print("bye")
+  `);
+});
+
+test('whitespace between multiple empty members', () => {
+  expectPython(`
+  class MyClass {
+    constructor(y: string) {
+      this.x = y;
+    }
+
+    public hello() {
+    }
+
+    public bye() {
+    }
+  }
+  `, `
+  class MyClass:
+      def __init__(self, y):
+          self.x = y
+
+      def hello(self):
+          pass
+
+      def bye(self):
+          pass
+  `);
+});
+
 test('two lines of whitespace between class declarations', async () => {
   expectPython(`
   class MyClass1 {
@@ -46,6 +100,27 @@ test('invisible interfaces do not affect whitespace', async () => {
   `, `
   class MyClass1:
       pass
+
+
+  class MyClass2:
+      pass
+  `);
+});
+
+test('class members do not affect whitespace', async () => {
+  expectPython(`
+  class MyClass1 {
+    constructor() {
+      console.log('hi');
+    }
+  }
+
+  class MyClass2 {
+  }
+  `, `
+  class MyClass1:
+      def __init__(self):
+          print("hi")
 
 
   class MyClass2:
