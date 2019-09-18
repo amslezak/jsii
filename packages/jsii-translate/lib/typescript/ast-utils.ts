@@ -134,22 +134,7 @@ export function matchAst<A>(node: ts.Node, matcher: AstMatcher<A>, cb?: (binding
   return matched;
 }
 
-// tslint:disable-next-line:max-line-length
-export function preserveSeparatingNewlines(rendered: Array<OTree | string>, sourceNodes: Iterable<ts.Node>, context: AstContext<any>): Array<OTree | string> {
-  const ret: Array<OTree | string> = [];
-
-  let lastNode;
-  for (const [rend, node] of zip(rendered, sourceNodes)) {
-    if (lastNode && node && containsNewline(context.textBetween(lastNode, node))) {
-      ret.push('\n');
-    }
-    lastNode = node;
-    ret.push(rend);
-  }
-
-  return ret;
-}
-
+/*
 function zip<A, B>(xs: Iterable<A>, ys: Iterable<B>): IterableIterator<[A, B | undefined]>;
 function zip<A, B, C>(xs: Iterable<A>, ys: Iterable<B>, defY: C): IterableIterator<[A, B | C]>;
 function* zip<A, B, C>(xs: Iterable<A>, ys: Iterable<B>, defY?: C): IterableIterator<[A, B | C]> {
@@ -165,21 +150,31 @@ function* zip<A, B, C>(xs: Iterable<A>, ys: Iterable<B>, defY?: C): IterableIter
     if (!y.done) { y = iterY.next(); }
   }
 }
+*/
 
-export function containsNewline(x: string) {
-  return x.indexOf('\n') !== -1;
-}
-
-export function countNewlines(str: string) {
+/**
+ * Count the newlines in a given piece of string that aren't in comment blocks
+ */
+export function countNakedNewlines(str: string) {
   let ret = 0;
-  for (const c of str) {
-    if (c === '\n') { ret++; }
-  }
+  scanText(str, 0, str.length)
+      .filter(s => s.type === 'other' || s.type === 'blockcomment')
+      .forEach(s => {
+        if (s.type === 'other') {
+          // Count newlines in non-comments
+          for (let i = s.pos; i < s.end; i++) {
+            if (str[i] === '\n') { ret++; }
+          }
+        } else {
+          // Discount newlines at the end of block comments
+          if (s.hasTrailingNewLine) { ret--; }
+        }
+      });
   return ret;
 }
 
 export function repeatNewlines(str: string) {
-  return '\n'.repeat(countNewlines(str));
+  return '\n'.repeat(countNakedNewlines(str));
 }
 
 const WHITESPACE = [' ', '\t', '\r', '\n'];
@@ -190,39 +185,99 @@ const WHITESPACE = [' ', '\t', '\r', '\n'];
  * Rewritten because I can't get ts.getLeadingComments and ts.getTrailingComments to do what I want.
  */
 export function extractComments(text: string, start: number): ts.CommentRange[] {
-  const ret: ts.CommentRange[] = [];
+  return scanText(text, start)
+      .filter(s => s.type === 'blockcomment' || s.type === 'linecomment')
+      .map(s => ({
+        kind: s.type === 'blockcomment' ? ts.SyntaxKind.MultiLineCommentTrivia : ts.SyntaxKind.SingleLineCommentTrivia,
+        pos: s.pos,
+        end: s.end,
+        hasTrailingNewLine: s.hasTrailingNewLine
+      } as ts.CommentRange));
+}
+
+interface TextRange {
+  pos: number;
+  end: number;
+  type: 'linecomment' | 'blockcomment' | 'other';
+  hasTrailingNewLine: boolean;
+}
+
+/**
+ * Extract spans of comments and non-comments out of the string
+ *
+ * Stop at 'end' when given, or the first non-whitespace character in a
+ * non-comment if not given.
+ */
+function scanText(text: string, start: number, end?: number): TextRange[] {
+  const ret: TextRange[] = [];
 
   let pos = start;
-  while (pos < text.length) {
+  const stopAtCode = end === undefined;
+  if (end === undefined) { end = text.length; }
+  while (pos < end) {
     const ch = text[pos];
 
     if (WHITESPACE.includes(ch)) { pos++; continue; }
 
     if (ch === '/' && text[pos + 1] === '/') {
+      accumulateTextBlock();
       scanSinglelineComment();
       continue;
     }
 
     if (ch === '/' && text[pos + 1] === '*') {
+      accumulateTextBlock();
       scanMultilineComment();
       continue;
     }
 
-    break; // Non-whitespace, non-comment, must be a regular token which means we're at the end of the whitespace block
+    // Non-whitespace, non-comment, must be regular token. End if we're not scanning
+    // to a particular location, otherwise continue.
+    if (stopAtCode) {
+      break;
+    }
+
+    pos++;
   }
+
+  accumulateTextBlock();
 
   return ret;
 
   function scanMultilineComment() {
-    const end = findNext('*/', pos + 2);
-    ret.push({ kind: ts.SyntaxKind.MultiLineCommentTrivia, hasTrailingNewLine: ['\n', '\r'].includes(text[end + 2]), pos, end });
-    pos = end + 2;
+    const endOfComment = findNext('*/', pos + 2);
+    ret.push({
+      type: 'blockcomment',
+      hasTrailingNewLine: ['\n', '\r'].includes(text[endOfComment + 2]),
+      pos,
+      end: endOfComment
+    });
+    pos = endOfComment + 2;
+    start = pos;
   }
 
   function scanSinglelineComment() {
     const nl = Math.min(findNext('\r', pos + 2), findNext('\n', pos + 2));
-    ret.push({ kind: ts.SyntaxKind.SingleLineCommentTrivia, hasTrailingNewLine: true, pos, end: nl });
+    ret.push({
+      type: 'linecomment',
+      hasTrailingNewLine: true,
+      pos,
+      end: nl
+    });
     pos = nl + 1;
+    start = pos;
+  }
+
+  function accumulateTextBlock() {
+    if (pos - start > 0) {
+      ret.push({
+        type: 'other',
+        hasTrailingNewLine: false,
+        pos: start,
+        end: pos
+      });
+      start = pos;
+    }
   }
 
   function findNext(sub: string, startPos: number) {
@@ -266,7 +321,10 @@ export function convertChildrenWithNewlines<C>(
 
     if (lastNode) { separators = repeatNewlines(context.textBetween(lastNode, node)); }
     lastNode = node;
-    ret.push(separators.length > 0 ? new OTree([separators, converted]) : converted);
+
+    if (!converted.isEmpty) {
+      ret.push(separators.length > 0 ? new OTree([separators, converted]) : converted);
+    }
   }
 
   return new OTree([options.prefix || ''], ret, {

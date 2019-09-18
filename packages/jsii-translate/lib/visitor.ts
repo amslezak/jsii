@@ -391,39 +391,66 @@ export interface VisitOptions {
   bestEffort?: boolean;
 }
 
+class ContextStack<C> {
+  private readonly contextStack = new Array<C>();
+
+  constructor(initial: C, private readonly merge: (a: C, b: C) => C) {
+    this.contextStack.push(initial);
+  }
+
+  public get top(): C  {
+    return this.contextStack[this.contextStack.length - 1];
+  }
+
+  public push(contextUpdate?: C): () => void {
+    if (contextUpdate === undefined) { return () => undefined; }
+
+    const updated = this.merge(this.top, contextUpdate);
+    this.contextStack.push(updated);
+
+    const self = this;
+    return () => {
+      if (self.top !== updated) {
+        throw new Error('Oops -- ordering mistake push and popping context');
+      }
+      self.contextStack.pop();
+    };
+  }
+}
+
 export function visitTree<C>(
       file: ts.SourceFile, root: ts.Node, typeChecker: ts.TypeChecker,
       visitor: AstVisitor<C>, options: VisitOptions = {}): TranslateResult {
   const diagnostics = new Array<ts.Diagnostic>();
 
-  const contextStack: C[] = [ visitor.defaultContext ];
+  const contextStack = new ContextStack<C>(visitor.defaultContext, visitor.mergeContext.bind(visitor));
 
   const context: AstContext<C> = {
     typeChecker,
     sourceFile: file,
 
     get currentContext(): C {
-      return contextStack[contextStack.length - 1];
+      return contextStack.top;
     },
 
-    children(node: ts.Node, pushContext?: C) {
-      if (pushContext !== undefined) { contextStack.push(visitor.mergeContext(context.currentContext, pushContext)); }
+    children(node: ts.Node, contextUpdate?: C) {
+      const pop = contextStack.push(contextUpdate);
       const ret = nodeChildren(node).map(recurse);
-      if (pushContext !== undefined) { contextStack.pop(); }
+      pop();
       return ret;
     },
-    convert(node: ts.Node | undefined, pushContext?: C): OTree {
+    convert(node: ts.Node | undefined, contextUpdate?: C): OTree {
       if (node === undefined) { return NO_SYNTAX; }
 
-      if (pushContext !== undefined) { contextStack.push(visitor.mergeContext(context.currentContext, pushContext)); }
+      const pop = contextStack.push(contextUpdate);
       const ret = recurse(node);
-      if (pushContext !== undefined) { contextStack.pop(); }
+      pop();
       return ret;
     },
-    convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, pushContext?: C): OTree[] {
-      if (pushContext !== undefined) { contextStack.push(visitor.mergeContext(context.currentContext, pushContext)); }
+    convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, contextUpdate?: C): OTree[] {
+      const pop = contextStack.push(contextUpdate);
       const ret = nodes.map(recurse);
-      if (pushContext !== undefined) { contextStack.pop(); }
+      pop();
       return ret;
     },
     textOf(node: ts.Node): string {

@@ -1,8 +1,7 @@
 import ts = require('typescript');
 import { isStructType, parameterAcceptsUndefined, propertiesOfStruct, StructProperty, structPropertyAcceptsUndefined } from '../jsii/jsii-utils';
 import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
-import { containsNewline, convertChildrenWithNewlines, matchAst, nodeOfType,
-  preserveSeparatingNewlines, stripCommentMarkers } from '../typescript/ast-utils';
+import { convertChildrenWithNewlines, matchAst, nodeOfType, stripCommentMarkers } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
 import { startsWithUppercase } from "../util";
 import { AstContext, DefaultVisitor, nimpl } from "../visitor";
@@ -109,8 +108,18 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
     return super.token(node, context);
   }
 
-  public identifier(node: ts.Identifier, _context: PythonVisitorContext) {
+  public identifier(node: ts.Identifier, context: PythonVisitorContext) {
     const originalIdentifier = node.text;
+
+    // tslint:disable-next-line:max-line-length
+    const explodedParameter = context.currentContext.explodedParameter;
+    // tslint:disable-next-line:max-line-length
+    if (context.currentContext.tailPositionArgument && explodedParameter && explodedParameter.type && explodedParameter.variableName === originalIdentifier) {
+      return new OTree([],
+        propertiesOfStruct(explodedParameter.type, context).map(prop => new OTree([prop.name, '=', prop.name])),
+        { separator: ', ' });
+    }
+
     return new OTree([mangleIdentifier(originalIdentifier)]);
   }
 
@@ -152,7 +161,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       }),
       '): ',
     ], [context.convert(node.body, { explodedParameter, currentMethodName: methodName })], {
-      suffix: '\n\n',
+      suffix: '\n',
       attachComment: true
     });
 
@@ -241,28 +250,34 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
   }
 
   public objectLiteralExpression(node: ts.ObjectLiteralExpression, context: PythonVisitorContext): OTree {
-    if (context.currentContext.tailPositionArgument) {
-      // Explode into parent call site
-      return convertChildrenWithNewlines(node, node.properties, context, {
-        pushContext: { renderObjectLiteralAsKeywords: true },
-        indent: 4,
-     });
-    }
+    const type = context.typeOfExpression(node);
 
+    // We render in one of three modes:
+    //
+    // - If we're in tail position, we render as keyword arguments if we don't know
+    //   the type, OR we know the type and the type is a struct.
+    // - Otherwise, if we know the type AND it's a struct we render a class constructor
+    //   (with keyword arguments for the literal members)
+    // - Otherwise, we render as a dict literal, using dict literal members.
     let prefix = '{';
     let suffix = '}';
-    let isStruct = false;
+    let renderObjectLiteralAsKeywords = false;
 
-    // If the type of the object literal is a struct, use a class constructor
-    const type = context.typeOfExpression(node);
-    if (type && isStructType(type)) {
+    const isUnknownType = !type || !type.symbol;
+    const isKnownStruct = type && isStructType(type);
+
+    if (context.currentContext.tailPositionArgument && (isUnknownType || isKnownStruct)) {
+      prefix = '';
+      suffix = '';
+      renderObjectLiteralAsKeywords = true;
+    } else if (type && isKnownStruct) {
       prefix = type.symbol.name + '(';
       suffix = ')';
-      isStruct = true;
+      renderObjectLiteralAsKeywords = true;
     }
 
     return convertChildrenWithNewlines(node, node.properties, context, {
-      pushContext: { renderObjectLiteralAsKeywords: isStruct },
+      pushContext: { renderObjectLiteralAsKeywords },
       prefix,
       suffix,
       indent: 4,
@@ -290,7 +305,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       before,
       context.convert(node.name),
       mid,
-      context.convert(node.initializer, {})
+      context.convert(node.initializer, { tailPositionArgument: false })
     ], [], { attachComment: true });
   }
 
@@ -369,10 +384,10 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       hasHeritage ? ')' : '',
       ': ',
     ], members, {
-      separator: '\n\n',
+      separator: '\n',
       newline: true,
       indent: 4,
-      suffix: '\n\n',
+      suffix: '\n',
       attachComment: true
     });
   }
@@ -436,6 +451,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
    */
   private convertFunctionCallArguments(args: ts.NodeArray<ts.Expression> | undefined, context: PythonVisitorContext) {
     if (!args) { return NO_SYNTAX; }
+
     const converted: Array<string | OTree> = args.length > 0 ? [
       ...context.convertAll(args.slice(0, args.length - 1)),
       context.convert(last(args), {
@@ -443,56 +459,8 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       })
     ] : [];
 
-    if (args.length > 0) {
-      const lastArg = args[args.length - 1];
-      if (ts.isObjectLiteralExpression(lastArg)) {
-        // Object literal, render as keyword arguments
-        converted.pop();
-
-        // tslint:disable-next-line:max-line-length
-        const precedingArg = args.length > 1 ? args[args.length - 2] : undefined;
-
-        // tslint:disable-next-line:max-line-length
-        converted.push(preserveNewlines(lastArg.properties.map(p => context.attachComments(p,  convertProp(p))), lastArg.properties, context, precedingArg));
-      }
-
-      const explodedParameter = context.currentContext.explodedParameter;
-
-      if (explodedParameter && explodedParameter.type && ts.isIdentifier(lastArg) && lastArg.text === explodedParameter.variableName) {
-        // Exploded struct, render fields as keyword arguments
-        converted.pop();
-        converted.push(new OTree([],
-          propertiesOfStruct(explodedParameter.type, context).map(prop => new OTree([prop.name, '=', prop.name])),
-          { separator: ', ' }));
-      }
-    }
-
-    return new OTree([], [preserveNewlines(converted, args, context)], { separator: ', ', indent: 4 });
-
-    function convertProp(prop: ts.ObjectLiteralElementLike) {
-      if (ts.isPropertyAssignment(prop)) {
-        return new OTree([context.convert(prop.name), '=', context.convert(prop.initializer)]);
-      } else if (ts.isShorthandPropertyAssignment(prop)) {
-        return new OTree([context.convert(prop.name), '=', context.convert(prop.name)]);
-      } else {
-        return new OTree(['???']);
-      }
-    }
+    return new OTree([], converted, { separator: ', ', indent: 4 });
   }
-}
-
-/**
- * Try to preserve newlines in a converted element tree
- */
-// tslint:disable-next-line:max-line-length
-function preserveNewlines(elements: Array<OTree | string>, nodes: ReadonlyArray<ts.Node>, context: PythonVisitorContext, leading?: ts.Node, fromStart?: boolean) {
-  const leadingNewline = leading && nodes.length > 0 && containsNewline((fromStart ? context.textFromTo : context.textBetween)(leading, nodes[0]));
-
-  // If we do a leading newline, also do a trailing newline
-  return new OTree([leadingNewline ? '\n' : ''], preserveSeparatingNewlines(elements, nodes, context), {
-    separator: ', ',
-    suffix: leadingNewline ? '\n' : '',
-  });
 }
 
 function mangleIdentifier(originalIdentifier: string) {

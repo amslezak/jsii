@@ -1,7 +1,7 @@
 import { expectPython } from "./python";
 
 test('class declaration with fields and constructor', async () => {
-  await expectPython(`
+  expectPython(`
   class MyClass {
     private readonly x: string;
 
@@ -16,8 +16,45 @@ test('class declaration with fields and constructor', async () => {
   `);
 });
 
+test('two lines of whitespace between class declarations', async () => {
+  expectPython(`
+  class MyClass1 {
+  }
+
+  class MyClass2 {
+  }
+  `, `
+  class MyClass1:
+      pass
+
+
+  class MyClass2:
+      pass
+  `);
+});
+
+test('invisible interfaces do not affect whitespace', async () => {
+  expectPython(`
+  class MyClass1 {
+  }
+
+  interface ThisWillNotBeRendered {
+  }
+
+  class MyClass2 {
+  }
+  `, `
+  class MyClass1:
+      pass
+
+
+  class MyClass2:
+      pass
+  `);
+});
+
 test.skip('class with implicit declaration', async () => {
-  await expectPython(`
+  expectPython(`
   class MyClass {
     private readonly x = 'bloep';
   }
@@ -29,7 +66,7 @@ test.skip('class with implicit declaration', async () => {
 });
 
 test('class with inheritance', async () => {
-  await expectPython(`
+  expectPython(`
   class MyClass extends cdk.SomeOtherClass {
   }
   `, `
@@ -39,7 +76,7 @@ test('class with inheritance', async () => {
 });
 
 test('class with inheritance and super class', async () => {
-  await expectPython(`
+  expectPython(`
   class MyClass extends cdk.SomeOtherClass {
     constructor(x: string, y: string) {
       super(x);
@@ -53,7 +90,7 @@ test('class with inheritance and super class', async () => {
 });
 
 test('class with method', async () => {
-  await expectPython(`
+  expectPython(`
   class MyClass extends cdk.SomeOtherClass {
     public someMethod(x: string) {
       console.log(x);
@@ -67,7 +104,7 @@ test('class with method', async () => {
 });
 
 test('class with props argument', async () => {
-  await expectPython(`
+  expectPython(`
   interface MyClassProps {
     readonly prop1: string;
     readonly prop2: number;

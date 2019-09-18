@@ -58,7 +58,7 @@ test('translate object literals with newlines', async () => {
   foo(25,
       foo=3,
       banana="hello"
-      )
+  )
   `);
 });
 
@@ -74,7 +74,7 @@ test('translate object literals with multiple newlines', async () => {
       foo=3,
 
       banana="hello"
-      )
+  )
   `);
 });
 
@@ -95,9 +95,9 @@ test('translate object literals second level with newlines', async () => {
   });
   `, `
   foo(25, foo=3, deeper={
-          "a": 1,
-          "b": 2
-      })
+      "a": 1,
+      "b": 2
+  })
   `);
 });
 
@@ -127,9 +127,9 @@ test('will type deep structs directly if type info is available', () => {
 
 
   foo(25, foo=3, deeper=DeeperStruct(
-          a=1,
-          b=2
-          ))
+      a=1,
+      b=2
+  ))
   `);
 });
 
@@ -159,7 +159,7 @@ test('default struct fields get =None appended', () => {
   `);
 });
 
-test.only('list of structs', () => {
+test('list of structs', () => {
   expectPython(`
   foo({
     list: [{
@@ -171,12 +171,29 @@ test.only('list of structs', () => {
     }]
   });
   `, `
-  foo(list=[{
-              "a": 1,
-              "b": 2
-          }, {
-              "a": 3,
-              "b": 4
-          }])
+  foo(
+      list=[{
+          "a": 1,
+          "b": 2
+      }, {
+          "a": 3,
+          "b": 4
+      }]
+  )
+  `);
+});
+
+test('literal map argument doesnt get keyworded', () => {
+  // requires type information to work
+  expectPython(`
+  function foo(xs: {[key: string]: string}) {  }
+
+  foo({ foo: 'bar', schmoo: 'schmar' })
+  `, `
+  def foo(xs):
+      pass
+
+
+  foo({"foo": "bar", "schmoo": "schmar"})
   `);
 });

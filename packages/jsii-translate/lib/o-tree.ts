@@ -1,3 +1,4 @@
+
 export interface OTreeOptions {
   /**
    * Add a newline at the end of the prefix.
@@ -61,13 +62,11 @@ export class OTree {
   public write(sink: OTreeSink) {
     if (!sink.tagOnce(this.options.renderOnce)) { return; }
 
-    const indent = this.options.indent || 0;
-
     for (const x of this.prefix) {
       sink.write(x);
     }
 
-    sink.adjustIndent(indent);
+    const popIndent = sink.requestIndentChange(this.options.indent || 0);
     if (this.options.newline) { sink.newline(); }
 
     let mark = sink.mark();
@@ -78,7 +77,7 @@ export class OTree {
       sink.write(child);
     }
 
-    sink.adjustIndent(-indent);
+    popIndent();
 
     if (this.options.suffix) {
       sink.write(this.options.suffix);
@@ -104,9 +103,10 @@ export interface SinkMark {
 }
 
 export class OTreeSink {
-  private indent = 0;
+  private readonly indentLevels: number[] = [0];
   private readonly fragments = new Array<string>();
   private singletonsRendered = new Set<string>();
+  private pendingIndentChange = 0;
 
   public tagOnce(key: string | undefined): boolean {
     if (key === undefined) { return true; }
@@ -130,7 +130,10 @@ export class OTreeSink {
     if (text instanceof OTree) {
       text.write(this);
     } else {
-      this.append(text.replace(/\n/g, '\n' + ' '.repeat(this.indent)));
+      if (containsNewline(text)) {
+        this.applyPendingIndentChange();
+      }
+      this.append(text.replace(/\n/g, '\n' + ' '.repeat(this.currentIndent)));
     }
   }
 
@@ -138,8 +141,19 @@ export class OTreeSink {
     this.write('\n');
   }
 
-  public adjustIndent(x: number) {
-    this.indent += x;
+  public requestIndentChange(x: number): () => void {
+    if (x === 0) { return () => undefined; }
+
+    this.pendingIndentChange = x;
+    const currentIndentState = this.indentLevels.length;
+    const self = this;
+
+    // Return a pop function which will reset to the current indent state,
+    // regardless of whether the indent was actually applied or not.
+    return () => {
+      self.indentLevels.splice(currentIndentState);
+      self.pendingIndentChange = 0;
+    };
   }
 
   public toString() {
@@ -149,6 +163,17 @@ export class OTreeSink {
 
   private append(x: string) {
     this.fragments.push(x);
+  }
+
+  private applyPendingIndentChange() {
+    if (this.pendingIndentChange !== 0) {
+      this.indentLevels.push(this.currentIndent + this.pendingIndentChange);
+      this.pendingIndentChange = 0;
+    }
+  }
+
+  private get currentIndent() {
+    return this.indentLevels[this.indentLevels.length - 1];
   }
 }
 
@@ -164,4 +189,8 @@ export function renderTree(tree: OTree): string {
   const sink = new OTreeSink();
   tree.write(sink);
   return sink.toString();
+}
+
+function containsNewline(x: string) {
+  return x.indexOf('\n') !== -1;
 }
