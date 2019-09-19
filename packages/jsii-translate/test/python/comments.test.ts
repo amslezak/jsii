@@ -64,3 +64,21 @@ test('empty lines in comments', () => {
   some_call()
   `);
 });
+
+test('trailing comments', () => {
+  expectPython(`
+  someCall();  // Oh no, it's a call
+
+  otherCall({
+    value: 5, // That's a big number
+    secondValue: 6 // Even bigger
+  });
+  `, `
+  some_call()  # Oh no, it's a call
+
+  other_call(
+      value=5, # That's a big number
+      second_value: 6 # Even bigger
+  )
+  `);
+});

@@ -1843,7 +1843,6 @@ function emitDocString(code: CodeMaker, docs: spec.Docs | undefined, options: {
     if (docs.see) { block('see', docs.see, false); }
     if (docs.stability && shouldMentionStability(docs.stability)) { block('stability', docs.stability, false); }
     if (docs.subclassable) { block('subclassable', 'Yes'); }
-    if (docs.example) { block('example', convertSnippetsInMarkdown(docs.example, (options.documentableItem || 'docstring') + 'example')); }
 
     for (const [k, v] of Object.entries(docs.custom || {})) {
         block(k + ':', v, false);
@@ -1852,7 +1851,10 @@ function emitDocString(code: CodeMaker, docs: spec.Docs | undefined, options: {
     if (docs.example) {
         brk();
         lines.push('Example::');
-        for (const line of docs.example.split('\n')) {
+
+        const exampleText = convertExample(docs.example, options.documentableItem || 'example');
+
+        for (const line of exampleText.split('\n')) {
             lines.push(`    ${line}`);
         }
         brk();
@@ -1899,6 +1901,13 @@ function isStruct(typeSystem: reflect.TypeSystem, ref: spec.TypeReference): bool
     if (!spec.isNamedTypeReference(ref)) { return false; }
     const type = typeSystem.tryFindFqn(ref.fqn);
     return type !== undefined && type.isInterfaceType() && type.isDataType();
+}
+
+function convertExample(example: string, filename: string): string {
+    const source = new translate.LiteralSource(example, filename);
+    const result = translate.translateTypeScript(source, new translate.PythonVisitor());
+    translate.printDiagnostics(result.diagnostics, process.stderr);
+    return translate.renderTree(result.tree);
 }
 
 function convertSnippetsInMarkdown(markdown: string, filename: string): string {

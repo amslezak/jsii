@@ -4,7 +4,8 @@ import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
 import { convertChildrenWithNewlines, matchAst, nodeOfType, stripCommentMarkers } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
 import { startsWithUppercase } from "../util";
-import { AstContext, DefaultVisitor, nimpl } from "../visitor";
+import { AstContext, nimpl } from "../visitor";
+import { DefaultVisitor } from './default';
 
 interface StructVar {
   variableName: string;
@@ -412,6 +413,22 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
     return NO_SYNTAX;
   }
 
+  public asExpression(node: ts.AsExpression, context: PythonVisitorContext): OTree {
+    return context.convert(node.expression);
+  }
+
+  public templateExpression(node: ts.TemplateExpression, context: PythonVisitorContext): OTree {
+    const parts = ['f"'];
+    if (node.head.rawText) { parts.push(quoteStringLiteral(node.head.rawText)); }
+    for (const span of node.templateSpans) {
+      parts.push('{' + context.textOf(span.expression) + '}');
+      if (span.literal.rawText) { parts.push(quoteStringLiteral(span.literal.rawText)); }
+    }
+    parts.push('"');
+
+    return new OTree([parts.join('')]);
+  }
+
   protected convertModuleReference(ref: string) {
     return ref.replace(/^@/, '').replace(/\//g, '.').replace(/-/g, '_');
   }
@@ -491,4 +508,8 @@ function flat<A>(xs: A[][]): A[] {
 
 function last<A>(xs: ReadonlyArray<A>): A {
   return xs[xs.length - 1];
+}
+
+function quoteStringLiteral(x: string) {
+  return x.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }

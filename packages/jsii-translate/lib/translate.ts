@@ -56,7 +56,7 @@ export function translateMarkdown(markdown: Source, visitor: AstVisitor<any>, op
 
   const translatedMarkdown = markdown.withContents((filename, contents) => {
     return transformMarkdown(contents, new MarkdownRenderer(), new ReplaceCodeTransform(code => {
-      if (code.language === '' || code.language === 'typescript') { return code; }
+      if (code.language !== 'typescript' && code.language !== 'ts') { return code; }
 
       index += 1;
       const snippetSource = new LiteralSource(code.source, `${filename}-snippet${index}.ts`);

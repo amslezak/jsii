@@ -3,7 +3,7 @@ import yargs = require('yargs');
 import { FileSource, isErrorDiagnostic, LiteralSource, printDiagnostics,
   renderTree, translateMarkdown, TranslateOptions, translateTypeScript } from '../lib';
 import { PythonVisitor } from '../lib/languages/python';
-import { VisualizeAstVisitor } from '../lib/visitor';
+import { VisualizeAstVisitor } from '../lib/languages/visualize';
 
 async function main() {
   const argv = yargs

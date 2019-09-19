@@ -2,7 +2,7 @@ import fs = require('fs-extra');
 import os = require('os');
 import path = require('path');
 import { renderTree, Source, translateTypeScript } from '.';
-import { VisualizeAstVisitor } from './visitor';
+import { VisualizeAstVisitor } from './languages/visualize';
 
 export function startsWithUppercase(x: string) {
   return x.match(/^[A-Z]/);
