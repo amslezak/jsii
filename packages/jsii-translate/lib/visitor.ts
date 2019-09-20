@@ -1,6 +1,6 @@
 import ts = require('typescript');
 import { NO_SYNTAX, OTree, UnknownSyntax } from './o-tree';
-import { convertChildrenWithNewlines, extractComments, nodeChildren } from './typescript/ast-utils';
+import { commentRangeFromTextRange, nodeChildren, repeatNewlines, scanText } from './typescript/ast-utils';
 import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from './typescript/imports';
 
 export interface AstContext<C> {
@@ -8,7 +8,6 @@ export interface AstContext<C> {
   typeChecker: ts.TypeChecker;
   currentContext: C;
 
-  children(node: ts.Node, context?: C): OTree[];
   convert(node: ts.Node | undefined, context?: C): OTree;
   convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, context?: C): OTree[];
   textOf(node: ts.Node): string;
@@ -17,9 +16,10 @@ export interface AstContext<C> {
   textFromTo(node1: ts.Node, node2: ts.Node): string;
   report(node: ts.Node, message: string, category?: ts.DiagnosticCategory): void;
   reportUnsupported(node: ts.Node): void;
-  attachComments(node: ts.Node, rendered: OTree): OTree;
+  attachLeadingTrivia(node: ts.Node, rendered: OTree): OTree;
   typeOfExpression(node: ts.Expression): ts.Type | undefined;
   typeOfType(node: ts.TypeNode): ts.Type;
+  mirrorNewlineBefore(viz?: ts.Node, suffix?: string): string;
 }
 
 export interface AstVisitor<C> {
@@ -63,6 +63,7 @@ export interface AstVisitor<C> {
   spreadAssignment(node: ts.SpreadAssignment, context: AstContext<C>): OTree;
   templateExpression(node: ts.TemplateExpression, context: AstContext<C>): OTree;
   nonNullExpression(node: ts.NonNullExpression, context: AstContext<C>): OTree;
+  parenthesizedExpression(node: ts.ParenthesizedExpression, context: AstContext<C>): OTree;
 
   // Not a node, called when we recognize a spread element/assignment that is only
   // '...' and nothing else.
@@ -70,7 +71,7 @@ export interface AstVisitor<C> {
 }
 
 export function nimpl<C>(node: ts.Node, context: AstContext<C>, options: { additionalInfo?: string} = {}) {
-  const children = context.children(node);
+  const children = nodeChildren(node).map(c => context.convert(c));
 
   let syntaxKind = ts.SyntaxKind[node.kind];
   if (syntaxKind === 'FirstPunctuation') {
@@ -82,12 +83,11 @@ export function nimpl<C>(node: ts.Node, context: AstContext<C>, options: { addit
   if (options.additionalInfo) { parts.push(`{${options.additionalInfo}}`); }
   parts.push(context.textOf(node));
 
-  return new UnknownSyntax([parts.join(' ')], children, {
-    newline: children.length > 0,
+  return new UnknownSyntax([parts.join(' ')], children.length > 0 ? ['\n', ...children] : [], {
     indent: 2,
     suffix: ')',
     separator: '\n',
-    attachComment: true
+    canBreakLine: true
   });
 }
 
@@ -147,12 +147,6 @@ export function visitTree<C>(
       return contextStack.top;
     },
 
-    children(node: ts.Node, contextUpdate?: C) {
-      const pop = contextStack.push(contextUpdate);
-      const ret = nodeChildren(node).map(recurse);
-      pop();
-      return ret;
-    },
     convert(node: ts.Node | undefined, contextUpdate?: C): OTree {
       if (node === undefined) { return NO_SYNTAX; }
 
@@ -199,27 +193,50 @@ export function visitTree<C>(
     textFromTo(node1: ts.Node, node2: ts.Node): string {
       return file.text.substring(node1.getStart(file), node2.getStart(file));
     },
-    attachComments(node: ts.Node, transformed: OTree): OTree {
-      // Add comments
+    attachLeadingTrivia(node: ts.Node, transformed: OTree): OTree {
+      // Add comments and leading whitespace
+      const leadingRanges = scanText(file.text, node.getFullStart(), node.getStart(file));
 
-      const leadingComments = extractComments(file.text, node.getFullStart());
+      // console.log(JSON.stringify(node.getFullText(file)));
+      // console.log(JSON.stringify(file.text.substring(node.getFullStart(), node.getStart(file))));
+
+      const precede: OTree[] = [];
+      for (const range of leadingRanges) {
+        switch (range.type) {
+          case 'other':
+            precede.push(new OTree([repeatNewlines(file.text.substring(range.pos, range.end))], [], {
+              renderOnce: `ws-${range.pos}`
+            }));
+            break;
+          case 'linecomment':
+          case 'blockcomment':
+            precede.push(visitor.commentRange(commentRangeFromTextRange(range), context));
+            break;
+        }
+      }
 
       // FIXME: No trailing comments for now, they're too tricky
-      // const trailingComments = extractComments(file.getText(), tree.getEnd()) || [];
-      const trailingComments: ts.CommentRange[] = [];
 
-      if (leadingComments.length + trailingComments.length > 0) {
-        // Combine into a new node
-        return new OTree([
-          ...leadingComments.map(c => visitor.commentRange(c, context)),
-          transformed,
-          ...trailingComments.map(c => visitor.commentRange(c, context)),
-        ], [], { attachComment: true });
+      if (precede.length > 0 && !transformed.isEmpty) {
+        return new OTree([...precede, transformed], [], { canBreakLine: true });
       } else {
-        // Let's not unnecessarily complicate the tree with additional levels, just
-        // return transformed
         return transformed;
       }
+    },
+    mirrorNewlineBefore(viz?: ts.Node, suffix: string = ''): string {
+      if (viz === undefined) { return suffix; }
+
+      // Return a newline if the given node is preceded by newlines
+      const leadingRanges = scanText(file.text, viz.getFullStart(), viz.getStart(file));
+      const newlines = [];
+
+      for (const range of leadingRanges) {
+        if (range.type === 'other') {
+          newlines.push(repeatNewlines(file.text.substring(range.pos, range.end)));
+        }
+      }
+
+      return (newlines.join('').length > 0 ? '\n' : '') + suffix;
     }
   };
 
@@ -233,15 +250,13 @@ export function visitTree<C>(
     const transformed = transformNode(tree);
     if (!transformed.attachComment) { return transformed; }
 
-    return context.attachComments(tree, transformed);
+    return context.attachLeadingTrivia(tree, transformed);
   }
 
   function transformNode(tree: ts.Node): OTree {
     // Special nodes
     if (ts.isSourceFile(tree))  {
-      return convertChildrenWithNewlines(tree, tree.statements, context, {
-        separator: ''
-      });
+      return new OTree(context.convertAll(tree.statements));
     }
     if (ts.isEmptyStatement(tree)) {
       // Additional semicolon where it doesn't belong.
@@ -291,6 +306,7 @@ export function visitTree<C>(
     }
     if (ts.isTemplateExpression(tree)) { return visitor.templateExpression(tree, context); }
     if (ts.isNonNullExpression(tree)) { return visitor.nonNullExpression(tree, context); }
+    if (ts.isParenthesizedExpression(tree)) { return visitor.parenthesizedExpression(tree, context); }
 
     context.reportUnsupported(tree);
 
@@ -300,8 +316,7 @@ export function visitTree<C>(
     } else {
       // Otherwise, show a placeholder indicating we don't recognize the type
       const nodeKind = ts.SyntaxKind[tree.kind];
-      return new UnknownSyntax([`<${nodeKind} ${context.textOf(tree)}>`], context.children(tree), {
-        newline: true,
+      return new UnknownSyntax([`<${nodeKind} ${context.textOf(tree)}>`], ['\n', ...nodeChildren(tree).map(recurse)], {
         indent: 2,
       });
     }

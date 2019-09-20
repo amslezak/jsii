@@ -1,7 +1,7 @@
 import ts = require('typescript');
 import { isStructType, parameterAcceptsUndefined, propertiesOfStruct, StructProperty, structPropertyAcceptsUndefined } from '../jsii/jsii-utils';
 import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
-import { convertChildrenWithNewlines, matchAst, nodeOfType, stripCommentMarkers } from '../typescript/ast-utils';
+import { matchAst, nodeOfType, stripCommentMarkers } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
 import { startsWithUppercase } from "../util";
 import { AstContext, nimpl } from "../visitor";
@@ -71,8 +71,10 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
 
   public commentRange(node: ts.CommentRange, context: PythonVisitorContext): OTree {
     const commentText = stripCommentMarkers(context.textAt(node.pos, node.end), node.kind === ts.SyntaxKind.MultiLineCommentTrivia);
+    const hashLines = commentText.split('\n').map(l => `# ${l}`).join('\n');
+    const needsAdditionalTrailer = node.kind !== ts.SyntaxKind.MultiLineCommentTrivia || !node.hasTrailingNewLine;
 
-    return new OTree([...commentText.split('\n').map(l => `# ${l}\n`)], [], {
+    return new OTree([hashLines, needsAdditionalTrailer ? '\n' : ''], [], {
       // Make sure comment is rendered exactly once in the output tree, no
       // matter how many source nodes it is attached to.
       renderOnce: `comment-${node.pos}`
@@ -83,8 +85,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
     const moduleName = this.convertModuleReference(node.packageName);
     if (node.imports.import === 'full') {
       return new OTree([`import ${moduleName} as ${mangleIdentifier(node.imports.alias)}`], [], {
-        newline: true,
-        attachComment: true
+        canBreakLine: true
       });
     }
     if (node.imports.import === 'selective') {
@@ -94,8 +95,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
           : mangleIdentifier(im.sourceName));
 
       return new OTree([`from ${moduleName} import ${imports.join(', ')}`], [], {
-        newline: true,
-        attachComment: true
+        canBreakLine: true
       });
     }
 
@@ -162,7 +162,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       }),
       '): ',
     ], [context.convert(node.body, { explodedParameter, currentMethodName: methodName })], {
-      attachComment: true
+      canBreakLine: true
     });
 
     return ret;
@@ -170,12 +170,13 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
 
   public block(node: ts.Block, context: PythonVisitorContext): OTree {
     if (node.statements.length === 0) {
-      return new OTree([], ['pass'], { newline: true, indent: 4, attachComment: true, suffix: '\n' });
+      return new OTree([], ['\npass'], { indent: 4, canBreakLine: true });
     }
 
-    return convertChildrenWithNewlines(node, node.statements, context, {
+    return new OTree([], context.convertAll(node.statements), {
       separator: '',
       indent: 4,
+      canBreakLine: true,
     });
   }
 
@@ -190,7 +191,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       expressionText,
       '(',
       this.convertFunctionCallArguments(node.arguments, context),
-      ')'], [], { attachComment: true });
+      ')'], [], { canBreakLine: true });
   }
 
   public propertyAccessExpression(node: ts.PropertyAccessExpression, context: PythonVisitorContext) {
@@ -240,12 +241,12 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
   public ifStatement(node: ts.IfStatement, context: PythonVisitorContext): OTree {
     const ifStmt = new OTree(
       ['if ', context.convert(node.expression), ': '],
-      [context.convert(node.thenStatement)], { attachComment: true });
-    const elseStmt = node.elseStatement ? new OTree([`else: `], [context.convert(node.elseStatement)], { attachComment: true }) : undefined;
+      [context.convert(node.thenStatement)], { canBreakLine: true });
+    const elseStmt = node.elseStatement ? new OTree([`else: `], [context.convert(node.elseStatement)], { canBreakLine: true }) : undefined;
 
     return elseStmt ? new OTree([], [ifStmt, elseStmt], {
       separator: '\n',
-      attachComment: true
+      canBreakLine: true
     }) : ifStmt;
   }
 
@@ -276,18 +277,17 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       renderObjectLiteralAsKeywords = true;
     }
 
-    return convertChildrenWithNewlines(node, node.properties, context, {
-      pushContext: { renderObjectLiteralAsKeywords },
-      prefix,
-      suffix,
+    return new OTree([prefix], context.convertAll(node.properties, { renderObjectLiteralAsKeywords }), {
+      suffix: context.mirrorNewlineBefore(node.properties[0], suffix),
+      separator: ', ',
       indent: 4,
     });
   }
 
   public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: PythonVisitorContext): OTree {
-    return convertChildrenWithNewlines(node, node.elements, context, {
-      prefix: '[',
-      suffix: ']',
+    return new OTree(['['], context.convertAll(node.elements), {
+      suffix: context.mirrorNewlineBefore(node.elements[0], ']'),
+      separator: ', ',
       indent: 4,
     });
   }
@@ -306,7 +306,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       context.convert(node.name),
       mid,
       context.convert(node.initializer, { tailPositionArgument: false })
-    ], [], { attachComment: true });
+    ], [], { canBreakLine: true });
   }
 
   public shorthandPropertyAssignment(node: ts.ShorthandPropertyAssignment, context: PythonVisitorContext): OTree {
@@ -323,7 +323,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       context.convert(node.name),
       mid,
       context.convert(node.name)
-    ], [], { attachComment: true });
+    ], [], { canBreakLine: true });
   }
 
   public newExpression(node: ts.NewExpression, context: PythonVisitorContext): OTree {
@@ -332,7 +332,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       '(',
       this.convertFunctionCallArguments(node.arguments, context),
       ')'
-    ], [], { attachComment: true });
+    ], [], { canBreakLine: true });
   }
 
   public variableDeclaration(node: ts.VariableDeclaration, context: PythonVisitorContext): OTree {
@@ -340,7 +340,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       context.convert(node.name),
       ' = ',
       context.convert(node.initializer)
-    ], [], { attachComment: true });
+    ], [], { canBreakLine: true });
   }
 
   public thisKeyword() {
@@ -364,7 +364,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       ' in ',
       context.convert(node.expression),
       ': '
-    ], [context.convert(node.statement)], { attachComment: true });
+    ], [context.convert(node.statement)], { canBreakLine: true });
   }
 
   public classDeclaration(node: ts.ClassDeclaration, context: PythonVisitorContext): OTree {
@@ -373,7 +373,7 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
 
     const members = context.convertAll(node.members, { inClass: true });
     if (members.length === 0) {
-      members.push(new OTree(['pass'], [], { suffix: '\n' }));
+      members.push(new OTree(['\npass'], []));
     }
 
     const ret = new OTree([
@@ -384,10 +384,8 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
       hasHeritage ? ')' : '',
       ': ',
     ], members, {
-      separator: '\n',
-      newline: true,
       indent: 4,
-      attachComment: true
+      canBreakLine: true
     });
 
     return ret;

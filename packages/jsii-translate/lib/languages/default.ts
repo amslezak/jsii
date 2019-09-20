@@ -40,8 +40,7 @@ export abstract class DefaultVisitor<C> implements AstVisitor<C> {
   }
 
   public block(node: ts.Block, children: AstContext<C>): OTree {
-    return new OTree(['{'], children.children(node), {
-      newline: true,
+    return new OTree(['{'], ['\n', ...children.convertAll(node.statements)], {
       indent: 4,
       suffix: '}',
     });
@@ -90,7 +89,7 @@ export abstract class DefaultVisitor<C> implements AstVisitor<C> {
   }
 
   public expressionStatement(node: ts.ExpressionStatement, context: AstContext<C>): OTree {
-    return context.convert(node.expression);
+    return new OTree([context.convert(node.expression)], [], { canBreakLine: true });
   }
 
   public token<A extends ts.SyntaxKind>(node: ts.Token<A>, context: AstContext<C>): OTree {
@@ -110,13 +109,11 @@ export abstract class DefaultVisitor<C> implements AstVisitor<C> {
   }
 
   public variableStatement(node: ts.VariableStatement, context: AstContext<C>): OTree {
-    return context.convert(node.declarationList);
+    return new OTree([context.convert(node.declarationList)], [], { canBreakLine: true });
   }
 
   public variableDeclarationList(node: ts.VariableDeclarationList, context: AstContext<C>): OTree {
-    return new OTree([], context.convertAll(node.declarations), {
-      separator: '\n'
-    });
+    return new OTree([], context.convertAll(node.declarations));
   }
 
   public variableDeclaration(node: ts.VariableDeclaration, context: AstContext<C>): OTree {
@@ -125,7 +122,7 @@ export abstract class DefaultVisitor<C> implements AstVisitor<C> {
 
   public arrayLiteralExpression(node: ts.ArrayLiteralExpression, context: AstContext<C>): OTree {
     return new OTree(['['], context.convertAll(node.elements), {
-      separator: ',\n',
+      separator: ', ',
       suffix: ']',
     });
   }
@@ -185,6 +182,10 @@ export abstract class DefaultVisitor<C> implements AstVisitor<C> {
   public nonNullExpression(node: ts.NonNullExpression, context: AstContext<C>): OTree {
     // We default we drop the non-null assertion
     return context.convert(node.expression);
+  }
+
+  public parenthesizedExpression(node: ts.ParenthesizedExpression, context: AstContext<C>): OTree {
+    return new OTree(['(', context.convert(node.expression), ')']);
   }
 
   private notImplemented(node: ts.Node, context: AstContext<C>) {

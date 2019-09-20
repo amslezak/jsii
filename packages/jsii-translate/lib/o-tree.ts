@@ -1,13 +1,6 @@
 
 export interface OTreeOptions {
   /**
-   * Add a newline at the end of the prefix.
-   *
-   * Newline is subject to new indentation.
-   */
-  newline?: boolean;
-
-  /**
    * Adjust indentation with the given number
    */
   indent?: number;
@@ -23,9 +16,9 @@ export interface OTreeOptions {
   suffix?: string;
 
   /**
-   * Whether this part of the generated syntax is okay to attach a comment to
+   * Whether this part of the generated syntax is okay to insert newlines and comments
    */
-  attachComment?: boolean;
+  canBreakLine?: boolean;
 
   /**
    * If set, a unique key which will cause only one node with the given key to be rendered.
@@ -56,7 +49,7 @@ export class OTree {
 
     this.prefix = OTree.simplify(prefix);
     this.children = OTree.simplify(children || []);
-    this.attachComment = !!options.attachComment;
+    this.attachComment = !!options.canBreakLine;
   }
 
   public write(sink: OTreeSink) {
@@ -67,8 +60,6 @@ export class OTree {
     }
 
     const popIndent = sink.requestIndentChange(this.options.indent || 0);
-    if (this.options.newline) { sink.newline(); }
-
     let mark = sink.mark();
     for (const child of this.children || []) {
       if (this.options.separator && mark.wroteNonWhitespaceSinceMark) { sink.write(this.options.separator); }
@@ -135,10 +126,6 @@ export class OTreeSink {
       }
       this.append(text.replace(/\n/g, '\n' + ' '.repeat(this.currentIndent)));
     }
-  }
-
-  public newline() {
-    this.write('\n');
   }
 
   public requestIndentChange(x: number): () => void {

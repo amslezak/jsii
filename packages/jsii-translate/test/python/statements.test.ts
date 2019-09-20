@@ -21,7 +21,6 @@ test('if/then/else', () => {
   `, `
   if x == 3:
       print("bye")
-
   else:
       print("toodels")
   `);
@@ -39,7 +38,6 @@ test('multiline if/then/else', () => {
   if x == 3:
       x += 1
       print("bye")
-
   else:
       print("toodels")
   `);

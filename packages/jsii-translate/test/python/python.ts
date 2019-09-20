@@ -13,6 +13,9 @@ export function ts2python(source: string): string {
   }
   const result = translateTypeScript(src, new PythonVisitor());
 
+  // Very debug. Much print.
+  // console.log(JSON.stringify(result.tree, undefined, 2));
+
   return renderTree(result.tree) + '\n';
 }
 

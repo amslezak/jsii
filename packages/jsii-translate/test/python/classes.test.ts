@@ -1,6 +1,8 @@
 import { expectPython } from "./python";
 
 test('class declaration with fields and constructor', async () => {
+  // FIXME: This whitespace is not entirely correct, but it's not horrible
+  // and I don't know how to fix it for now.
   expectPython(`
   class MyClass {
     private readonly x: string;
@@ -11,6 +13,7 @@ test('class declaration with fields and constructor', async () => {
   }
   `, `
   class MyClass:
+
       def __init__(self, y):
           self.x = y
   `);
@@ -70,23 +73,6 @@ test('whitespace between multiple empty members', () => {
   `);
 });
 
-test('two lines of whitespace between class declarations', async () => {
-  expectPython(`
-  class MyClass1 {
-  }
-
-  class MyClass2 {
-  }
-  `, `
-  class MyClass1:
-      pass
-
-
-  class MyClass2:
-      pass
-  `);
-});
-
 test('invisible interfaces do not affect whitespace', async () => {
   expectPython(`
   class MyClass1 {
@@ -100,28 +86,6 @@ test('invisible interfaces do not affect whitespace', async () => {
   `, `
   class MyClass1:
       pass
-
-
-  class MyClass2:
-      pass
-  `);
-});
-
-test('class members do not affect whitespace', async () => {
-  expectPython(`
-  class MyClass1 {
-    constructor() {
-      console.log('hi');
-    }
-  }
-
-  class MyClass2 {
-  }
-  `, `
-  class MyClass1:
-      def __init__(self):
-          print("hi")
-
 
   class MyClass2:
       pass

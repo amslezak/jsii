@@ -125,7 +125,6 @@ test('will type deep structs directly if type info is available', () => {
   def foo(x, *, foo, deeper):
       pass
 
-
   foo(25, foo=3, deeper=DeeperStruct(
       a=1,
       b=2
@@ -192,7 +191,6 @@ test('literal map argument doesnt get keyworded', () => {
   `, `
   def foo(xs):
       pass
-
 
   foo({"foo": "bar", "schmoo": "schmar"})
   `);

@@ -162,6 +162,10 @@ export class VisualizeAstVisitor implements AstVisitor<void> {
     return this.defaultNode('nonNullExpression', node, context);
   }
 
+  public parenthesizedExpression(node: ts.ParenthesizedExpression, context: AstContext<void>): OTree {
+    return this.defaultNode('parenthesizedExpression', node, context);
+  }
+
   private defaultNode(handlerName: string, node: ts.Node, context: AstContext<void>): OTree {
     return nimpl(node, context, {
       additionalInfo: this.includeHandlerNames ? handlerName : ''

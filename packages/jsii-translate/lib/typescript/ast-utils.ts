@@ -1,5 +1,4 @@
 import ts = require('typescript');
-import { OTree } from '../o-tree';
 import { AstContext } from '../visitor';
 
 export function stripCommentMarkers(comment: string, multiline: boolean) {
@@ -191,12 +190,16 @@ const WHITESPACE = [' ', '\t', '\r', '\n'];
 export function extractComments(text: string, start: number): ts.CommentRange[] {
   return scanText(text, start)
       .filter(s => s.type === 'blockcomment' || s.type === 'linecomment')
-      .map(s => ({
-        kind: s.type === 'blockcomment' ? ts.SyntaxKind.MultiLineCommentTrivia : ts.SyntaxKind.SingleLineCommentTrivia,
-        pos: s.pos,
-        end: s.end,
-        hasTrailingNewLine: s.hasTrailingNewLine
-      } as ts.CommentRange));
+      .map(commentRangeFromTextRange);
+}
+
+export function commentRangeFromTextRange(rng: TextRange): ts.CommentRange {
+  return {
+    kind: rng.type === 'blockcomment' ? ts.SyntaxKind.MultiLineCommentTrivia : ts.SyntaxKind.SingleLineCommentTrivia,
+    pos: rng.pos,
+    end: rng.end,
+    hasTrailingNewLine: rng.hasTrailingNewLine
+  };
 }
 
 interface TextRange {
@@ -212,7 +215,7 @@ interface TextRange {
  * Stop at 'end' when given, or the first non-whitespace character in a
  * non-comment if not given.
  */
-function scanText(text: string, start: number, end?: number): TextRange[] {
+export function scanText(text: string, start: number, end?: number): TextRange[] {
   const ret: TextRange[] = [];
 
   let pos = start;
@@ -291,51 +294,19 @@ function scanText(text: string, start: number, end?: number): TextRange[] {
   }
 }
 
-interface ConvertWithNewlineOptions<C> {
-  pushContext?: C;
-  prefix?: string;
-  suffix?: string;
-  indent?: number;
-
-  /**
-   * Separator
-   *
-   * @default ', '
-   */
-  separator?: string;
-}
-
 /**
- * Convert a set children of a parent node, trying to preserve newlines from the original source
+ * We use void directives as pragmas. Extract the void directives here
  */
-export function convertChildrenWithNewlines<C>(
-    parentNode: ts.Node,
-    childNodes: ReadonlyArray<ts.Node>,
-    context: AstContext<C>,
-    options: ConvertWithNewlineOptions<C> = {}) {
-
-  const ret = new Array<OTree>();
-
-  const initialNewlines = parentNode && childNodes.length > 0 ? repeatNewlines(context.textFromTo(parentNode, childNodes[0])) : '';
-
-  let separators = initialNewlines;
-  let lastNode;
-  for (const node of childNodes) {
-    const converted = context.convert(node, options.pushContext);
-
-    if (lastNode) { separators = repeatNewlines(context.textBetween(lastNode, node)); }
-    lastNode = node;
-
-    if (!converted.isEmpty) {
-      ret.push(separators.length > 0 ? new OTree([separators, converted]) : converted);
+export function extractVoidDirectives(node: ts.Node, context: AstContext<any>): string[] | undefined {
+  if (ts.isVoidExpression(node)) {
+    if (!ts.isStringLiteral(node.expression)) {
+      context.report(node, 'void directive must take a string literal with example directives');
+      return [];
     }
+    return node.expression.text.split(' ');
   }
-
-  return new OTree([options.prefix || ''], ret, {
-    indent: options.indent,
-    // As a general rule, if you can insert newlines you can attach comments
-    attachComment: true,
-    separator: options.separator !== undefined ? options.separator : ', ',
-    suffix: (initialNewlines.length > 0 ? '\n' : '') + (options.suffix || '')
-  });
+  if (ts.isExpressionStatement(node)) { return extractVoidDirectives(node.expression, context); }
+  if (ts.isParenthesizedExpression(node)) { return extractVoidDirectives(node.expression, context); }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.CommaToken) { return extractVoidDirectives(node.left, context); }
+  return undefined;
 }
