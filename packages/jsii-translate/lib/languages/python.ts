@@ -1,7 +1,7 @@
 import ts = require('typescript');
 import { isStructType, parameterAcceptsUndefined, propertiesOfStruct, StructProperty, structPropertyAcceptsUndefined } from '../jsii/jsii-utils';
 import { NO_SYNTAX, OTree, renderTree } from "../o-tree";
-import { matchAst, nodeOfType, stripCommentMarkers } from '../typescript/ast-utils';
+import { matchAst, nodeOfType, stripCommentMarkers, voidExpressionString } from '../typescript/ast-utils';
 import { ImportStatement } from '../typescript/imports';
 import { startsWithUppercase } from "../util";
 import { AstContext, nimpl } from "../visitor";
@@ -427,6 +427,13 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
     return new OTree([parts.join('')]);
   }
 
+  public maskingVoidExpression(node: ts.VoidExpression, _context: PythonVisitorContext): OTree {
+    const arg = voidExpressionString(node);
+    if (arg === 'block') { return new OTree(['# ...'], [], { canBreakLine: true }); }
+    if (arg === '...') { return new OTree(['...']); }
+    return NO_SYNTAX;
+  }
+
   protected convertModuleReference(ref: string) {
     return ref.replace(/^@/, '').replace(/\//g, '.').replace(/-/g, '_');
   }
@@ -467,12 +474,9 @@ export class PythonVisitor extends DefaultVisitor<PythonLanguageContext> {
   private convertFunctionCallArguments(args: ts.NodeArray<ts.Expression> | undefined, context: PythonVisitorContext) {
     if (!args) { return NO_SYNTAX; }
 
-    const converted: Array<string | OTree> = args.length > 0 ? [
-      ...context.convertAll(args.slice(0, args.length - 1)),
-      context.convert(last(args), {
-        tailPositionArgument: true,
-      })
-    ] : [];
+    const converted: Array<string | OTree> = context.convertLastDifferently(args, {
+      tailPositionArgument: true,
+    });
 
     return new OTree([], converted, { separator: ', ', indent: 4 });
   }

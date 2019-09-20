@@ -1,6 +1,7 @@
 import ts = require('typescript');
 import { NO_SYNTAX, OTree, UnknownSyntax } from './o-tree';
-import { commentRangeFromTextRange, nodeChildren, repeatNewlines, scanText } from './typescript/ast-utils';
+import { commentRangeFromTextRange, extractMaskingVoidExpression, extractShowingVoidExpression, nodeChildren,
+  repeatNewlines, scanText } from './typescript/ast-utils';
 import { analyzeImportDeclaration, analyzeImportEquals, ImportStatement } from './typescript/imports';
 
 export interface AstContext<C> {
@@ -10,6 +11,7 @@ export interface AstContext<C> {
 
   convert(node: ts.Node | undefined, context?: C): OTree;
   convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, context?: C): OTree[];
+  convertLastDifferently<A extends ts.Node>(nodes: ReadonlyArray<A>, lastContext?: C): OTree[];
   textOf(node: ts.Node): string;
   textAt(pos: number, end: number): string;
   textBetween(node1: ts.Node, node2: ts.Node): string;
@@ -64,6 +66,7 @@ export interface AstVisitor<C> {
   templateExpression(node: ts.TemplateExpression, context: AstContext<C>): OTree;
   nonNullExpression(node: ts.NonNullExpression, context: AstContext<C>): OTree;
   parenthesizedExpression(node: ts.ParenthesizedExpression, context: AstContext<C>): OTree;
+  maskingVoidExpression(node: ts.VoidExpression, context: AstContext<C>): OTree;
 
   // Not a node, called when we recognize a spread element/assignment that is only
   // '...' and nothing else.
@@ -117,7 +120,7 @@ class ContextStack<C> {
   }
 
   public push(contextUpdate?: C): () => void {
-    if (contextUpdate === undefined) { return () => undefined; }
+    if (contextUpdate === undefined) { return nop; }
 
     const updated = this.merge(this.top, contextUpdate);
     this.contextStack.push(updated);
@@ -130,6 +133,10 @@ class ContextStack<C> {
       self.contextStack.pop();
     };
   }
+}
+
+function nop() {
+  // Empty on purpose
 }
 
 export function visitTree<C>(
@@ -157,8 +164,26 @@ export function visitTree<C>(
     },
     convertAll<A extends ts.Node>(nodes: ReadonlyArray<A>, contextUpdate?: C): OTree[] {
       const pop = contextStack.push(contextUpdate);
-      const ret = nodes.map(recurse);
+      const ret = filterVisible(nodes).map(recurse);
       pop();
+      return ret;
+    },
+    convertLastDifferently<A extends ts.Node>(nodes: ReadonlyArray<A>, lastContext?: C): OTree[] {
+      // Convert the last node differently, keeping node visibility in mind.
+      const ret: OTree[] = [];
+
+      const vis = assignVisibility(nodes);
+      for (let i = 0; i < vis.length; i++) {
+        const pop = i === vis.length - 1 ? contextStack.push(lastContext) : nop;
+
+        const node = vis[i].visible ? vis[i].node : vis[i].maskingVoid;
+        if (node) {
+          ret.push(recurse(node));
+        }
+
+        pop();
+      }
+
       return ret;
     },
     textOf(node: ts.Node): string {
@@ -307,6 +332,7 @@ export function visitTree<C>(
     if (ts.isTemplateExpression(tree)) { return visitor.templateExpression(tree, context); }
     if (ts.isNonNullExpression(tree)) { return visitor.nonNullExpression(tree, context); }
     if (ts.isParenthesizedExpression(tree)) { return visitor.parenthesizedExpression(tree, context); }
+    if (ts.isVoidExpression(tree)) { return visitor.maskingVoidExpression(tree, context); }
 
     context.reportUnsupported(tree);
 
@@ -321,4 +347,39 @@ export function visitTree<C>(
       });
     }
   }
+}
+
+interface ClassifiedNode {
+  node: ts.Node;
+  visible: boolean;
+  maskingVoid?: ts.VoidExpression;
+}
+
+function filterVisible(nodes: ReadonlyArray<ts.Node>): ts.Node[] {
+  return assignVisibility(nodes).map(c => c.visible ? c.node : c.maskingVoid).filter(notUndefined);
+}
+
+function assignVisibility(nodes: ReadonlyArray<ts.Node>): ClassifiedNode[] {
+  const ret: ClassifiedNode[] = [];
+
+  let visible = true;
+  for (const node of nodes) {
+    const maskingVoid = extractMaskingVoidExpression(node);
+    if (visible && maskingVoid) { visible = false; }
+
+    ret.push({ node, maskingVoid, visible });
+
+    if (!visible) {
+      const showing = extractShowingVoidExpression(node);
+      if (showing) {
+        visible = true;
+      }
+    }
+  }
+
+  return ret;
+}
+
+function notUndefined<A>(x: A | undefined): x is A {
+  return x !== undefined;
 }

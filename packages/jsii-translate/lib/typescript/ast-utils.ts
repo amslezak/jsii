@@ -294,19 +294,41 @@ export function scanText(text: string, start: number, end?: number): TextRange[]
   }
 }
 
+const VOID_SHOW_KEYWORD = 'show';
+
+export function extractMaskingVoidExpression(node: ts.Node): ts.VoidExpression | undefined {
+  const expr = extractVoidExpression(node);
+  if (!expr) { return undefined; }
+  if (ts.isStringLiteral(expr.expression) && expr.expression.text === VOID_SHOW_KEYWORD) {
+    return undefined;
+  }
+  return expr;
+}
+
+export function extractShowingVoidExpression(node: ts.Node): ts.VoidExpression | undefined {
+  const expr = extractVoidExpression(node);
+  if (!expr) { return undefined; }
+  if (ts.isStringLiteral(expr.expression) && expr.expression.text === VOID_SHOW_KEYWORD) {
+    return expr;
+  }
+  return undefined;
+}
+
+/**
+ * Return the string argument to a void expression if it exists
+ */
+export function voidExpressionString(node: ts.VoidExpression): string | undefined {
+  if (ts.isStringLiteral(node.expression)) { return node.expression.text; }
+  return undefined;
+}
+
 /**
  * We use void directives as pragmas. Extract the void directives here
  */
-export function extractVoidDirectives(node: ts.Node, context: AstContext<any>): string[] | undefined {
-  if (ts.isVoidExpression(node)) {
-    if (!ts.isStringLiteral(node.expression)) {
-      context.report(node, 'void directive must take a string literal with example directives');
-      return [];
-    }
-    return node.expression.text.split(' ');
-  }
-  if (ts.isExpressionStatement(node)) { return extractVoidDirectives(node.expression, context); }
-  if (ts.isParenthesizedExpression(node)) { return extractVoidDirectives(node.expression, context); }
-  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.CommaToken) { return extractVoidDirectives(node.left, context); }
+export function extractVoidExpression(node: ts.Node): ts.VoidExpression  | undefined {
+  if (ts.isVoidExpression(node)) { return node; }
+  if (ts.isExpressionStatement(node)) { return extractVoidExpression(node.expression); }
+  if (ts.isParenthesizedExpression(node)) { return extractVoidExpression(node.expression); }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.CommaToken) { return extractVoidExpression(node.left); }
   return undefined;
 }

@@ -166,6 +166,10 @@ export class VisualizeAstVisitor implements AstVisitor<void> {
     return this.defaultNode('parenthesizedExpression', node, context);
   }
 
+  public maskingVoidExpression(node: ts.VoidExpression, context: AstContext<void>): OTree {
+    return this.defaultNode('maskingVoidExpression', node, context);
+  }
+
   private defaultNode(handlerName: string, node: ts.Node, context: AstContext<void>): OTree {
     return nimpl(node, context, {
       additionalInfo: this.includeHandlerNames ? handlerName : ''

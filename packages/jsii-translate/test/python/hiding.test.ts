@@ -2,7 +2,7 @@ import { expectPython } from "./python";
 
 test('hide top level statements using void directive', () => {
   expectPython(`
-  void 'hide';
+  void 1;
   function foo(x: number) {
   }
   void 'show';
@@ -16,9 +16,8 @@ test('hide block level statements using void directive', () => {
   expectPython(`
   if (true) {
     console.log('everything is well');
-    void 'hide';
+    void 1;
     subprocess.exec('rm -rf /');
-    void 'show';
   }
 
   onlyToEndOfBlock();
@@ -26,15 +25,36 @@ test('hide block level statements using void directive', () => {
   if True:
       print("everything is well")
 
-
   only_to_end_of_block()
   `);
 });
 
-test.only('hide parameter sequence', () => {
+test('hide parameter sequence', () => {
   expectPython(`
-  foo(3, (void 'hide', 4), 5, 6, (void 'show', 7), 8);
+  foo(3, (void 1, 4), 5, 6, (void 'show', 7), 8);
   `, `
   foo(3, 8)
+  `);
+});
+
+test('hide expression with explicit ellipsis', () => {
+  expectPython(`
+  foo(3, (void '...', 4), 5, 6, 7);
+  `, `
+  foo(3, ...)
+  `);
+});
+
+test('hide statements with explicit ellipsis', () => {
+  expectPython(`
+  before();
+  void 'block';
+  middle();
+  void 'show';
+  after();
+  `, `
+  before()
+  # ...
+  after()
   `);
 });

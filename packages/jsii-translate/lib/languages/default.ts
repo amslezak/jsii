@@ -188,6 +188,11 @@ export abstract class DefaultVisitor<C> implements AstVisitor<C> {
     return new OTree(['(', context.convert(node.expression), ')']);
   }
 
+  public maskingVoidExpression(_node: ts.VoidExpression, _context: AstContext<C>): OTree {
+    // Don't render anything by default when nodes are masked
+    return new OTree([]);
+  }
+
   private notImplemented(node: ts.Node, context: AstContext<C>) {
     context.reportUnsupported(node);
     return nimpl(node, context);
