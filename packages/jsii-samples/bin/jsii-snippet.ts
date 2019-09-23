@@ -8,8 +8,8 @@ import { VisualizeAstVisitor } from '../lib/languages/visualize';
 async function main() {
   const argv = yargs
     .usage('$0 [file]')
-    .option('python', { alias: 'p' })
-    .option('markdown', { alias: 'm' })
+    .option('python', { alias: 'p', boolean: true, description: 'Translate snippets to Python' })
+    .option('markdown', { alias: 'm', boolean: true, description: 'Parse input as MarkDown and translate snippets inside it' })
     .help()
     .version(require('../package.json').version)
     .argv;

@@ -3,6 +3,46 @@
 Utility to transcribe example code snippets from TypeScript to other jsii-supported languages.
 Knows about jsii conventions to do the translations.
 
+## Build integration
+
+This tool has the ability to hide irrelevant parts of the generated code
+snippet (see the section called "void masking" below). Because the samples
+should be compilable to extract all necessary type information, and because
+they could depend on any package, the following steps need to happen:
+
+* All packages need to be built (by `jsii`). Ideally, the reduced example ends
+  up in the assembly.
+* After all packages have been built, sample snippets should be checked
+  for compilability and supported language constructs (not all language
+  features can be translated to other languages). This requires the full
+  snippets (before reducing).
+* After the full samples have been type-checked, their reduced version
+  can be translated and inserted into the various generated packages by
+  `jsii-pacmak`.
+
+To avoid an additional dependency of `jsii` on the `jsii-samples` mechanism,
+what we'll do instead is mutating the assembly in-place. So simplified,
+the workflow looks like this:
+
+* All packages get compiled by `jsii`.
+* We postprocess all assemblies using `jsii-samples`, extracting code to
+  a side-archive (`.jsii.samples`) and replacing the original version in the
+  assembly, and generating all other language versions. This becomes a
+  translation table, with the key being a hash of the reduced snippet.
+* `jsii-pacmak` replaces snippets from the translation table.
+
+In this process, `jsii-samples` is as much self-contained as possible. It
+works on an assembly to produce a lookup file, which `jsii-pacmak` reads.
+`jsii-pacmak` has a simple fallback, which is use the unsubtituted example in
+case the right example is not available.
+
+Alternatively, since `jsii` doesn't really provide any facilities to mutate
+an assembly in-place, we leave the unreduced examples in the source assembly,
+and force all downstream renderers (such as the doc renderer and API tooling)
+to use `jsii-samples` to reduce the snippets before presenting them. This is
+not ideal but probably the way we're going to go because `jsii` doesn't provide
+any tooling to mutate an assembly in-place.
+
 ## Compilability
 
 In case of non-compiling samples, the translations will be based off of
