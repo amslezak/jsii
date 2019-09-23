@@ -58,7 +58,7 @@
   "references": [
     { "path": "../jsii-spec" },
     { "path": "../codemaker" },
-    { "path": "../jsii-translate" },
+    { "path": "../jsii-samples" },
     { "path": "../jsii-reflect" }
   ]
 }

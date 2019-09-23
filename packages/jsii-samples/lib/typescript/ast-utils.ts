@@ -1,5 +1,4 @@
 import ts = require('typescript');
-import { AstContext } from '../visitor';
 
 export function stripCommentMarkers(comment: string, multiline: boolean) {
   if (multiline) {

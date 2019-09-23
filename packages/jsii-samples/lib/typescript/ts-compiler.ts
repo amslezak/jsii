@@ -32,7 +32,8 @@ export class TypeScriptCompiler {
 
   public compileInMemory(filename: string, contents: string): CompilationResult {
     if (!filename.endsWith('.ts')) {
-      throw new Error('filename must end in .ts or compilation will not analyise the file');
+      // Necessary or the TypeScript compiler won't compile the file.
+      filename += '.ts';
     }
 
     const program = ts.createProgram({

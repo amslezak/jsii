@@ -5,7 +5,7 @@ import * as escapeStringRegexp from 'escape-string-regexp';
 import * as reflect from 'jsii-reflect';
 import * as spec from 'jsii-spec';
 import { Stability } from 'jsii-spec';
-import * as translate from 'jsii-translate';
+import * as translate from 'jsii-samples';
 import { Generator, GeneratorOptions } from '../generator';
 import { warn } from '../logging';
 import { md2rst } from '../markdown';
